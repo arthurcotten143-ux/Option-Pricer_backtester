@@ -1,0 +1,13 @@
+# Renommer le fichier correctement
+mv Untitled-1 streamlit_app.py
+
+# Créer le requirements.txt
+echo "numpy
+matplotlib
+scipy
+streamlit" > requirements.txt
+
+# Pousser sur GitHub
+git add .
+git commit -m "initial pricer BS"
+git push
