@@ -1,7 +1,7 @@
 """
 Options Pricer — Streamlit
 Compatible GitHub Codespaces / navigateur
-Lancer avec : streamlit run streamlit_bs_pricer.py
+Lancer avec : streamlit run Option-Pricer_Backtester.py
 """
 
 import numpy as np
@@ -39,7 +39,7 @@ st.markdown("""
         background-color: #000000 !important;
     }
     
-    /* === TITRES (SEULEMENT H1 EN BOLD) === */
+    /* === TITRES === */
     h1 { 
         color: #4a9eff !important; 
         font-family: monospace !important; 
@@ -61,7 +61,7 @@ st.markdown("""
         font-size: 0.72rem !important;
     }
     
-    /* === INPUT TEXT BOX - FOND NOIR + TEXTE BLANC === */
+    /* === INPUT TEXT BOX === */
     input[type="number"],
     input[type="text"],
     .stNumberInput input,
@@ -70,20 +70,18 @@ st.markdown("""
         color: #ffffff !important;
         border: 2px solid #4a9eff !important;
         font-weight: normal !important;
-        font-size: 0.72rem !important;
     }
     
-    /* === SELECT BOX - FOND NOIR + TEXTE BLANC === */
+    /* === SELECT BOX === */
     .stSelectbox > div > div,
     select {
         background-color: #0a0a0a !important;
         color: #ffffff !important;
         border: 2px solid #4a9eff !important;
         font-weight: normal !important;
-        font-size: 0.72rem !important;
     }
     
-    /* === OPTIONS DU MENU DÉROULANT === */
+    /* === OPTIONS MENU DÉROULANT === */
     .stSelectbox div[data-baseweb="select"] > div,
     .stSelectbox ul,
     .stSelectbox li,
@@ -91,10 +89,8 @@ st.markdown("""
     [role="option"] {
         background-color: #0a0a0a !important;
         color: #ffffff !important;
-        font-size: 0.72rem !important;
     }
     
-    /* === OPTION HOVER === */
     .stSelectbox li:hover,
     [role="option"]:hover {
         background-color: #1a1a1a !important;
@@ -107,7 +103,7 @@ st.markdown("""
         border: 2px solid #4a9eff !important;
         border-radius: 10px !important;
         padding: 13px !important;
-        box-shadow: 0 0 10px rgba(74, 222, 128, 0.2) !important;
+        box-shadow: 0 0 15px rgba(74, 158, 255, 0.3) !important;
     }
     div[data-testid="metric-container"] label,
     div[data-testid="metric-container"] label p {
@@ -123,7 +119,7 @@ st.markdown("""
         font-size: 1.3rem !important;
     }
     div[data-testid="stMetricDelta"] {
-        color: #60a5fa !important;
+        color: #4a9eff !important;
         font-weight: normal !important;
     }
     
@@ -154,22 +150,20 @@ st.markdown("""
         color: #4a9eff !important;
         font-weight: normal !important;
         border: 1px solid #4a9eff !important;
-        padding: 5px !important;
-        font-size: 0.72rem !important;
+        padding: 6px !important;
     }
     .dataframe td {
         color: #ffffff !important;
         background-color: #000000 !important;
         border: 1px solid #333333 !important;
-        padding: 5px !important;
+        padding: 6px !important;
         font-weight: normal !important;
-        font-size: 0.72rem !important;
     }
     
     /* === LIEN AUTEUR === */
     .author-link { 
         color: #888888 !important; 
-        font-size: 0.77rem; 
+        font-size: 0.72rem; 
         font-family: monospace; 
         margin-top: -10px;
         margin-bottom: 15px;
@@ -183,7 +177,7 @@ st.markdown("""
     .author-link a:hover {
         color: #60a5fa !important;
         text-decoration: underline;
-        text-shadow: 0 0 5px rgba(74, 222, 128, 0.5);
+        text-shadow: 0 0 5px rgba(74, 158, 255, 0.5);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -262,7 +256,6 @@ def prob_itm(S, K, T, r, sigma, q=0.0, opt="call"):
 # ─── IMPLIED VOLATILITY ───────────────────────────────────────────────────────
 
 def implied_volatility(market_price, S, K, T, r, q=0.0, opt="call"):
-    """Calibration de la volatilité implicite par méthode de Brent"""
     if T <= 1e-10:
         return np.nan
     
@@ -282,15 +275,13 @@ def implied_volatility(market_price, S, K, T, r, q=0.0, opt="call"):
     except:
         return np.nan
 
-# ─── MONTE CARLO OPTIMISÉ ─────────────────────────────────────────────────────
+# ─── MONTE CARLO ──────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=300)
 def monte_carlo_pricer_cached(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed):
-    """Version cachée du pricer Monte Carlo"""
     return monte_carlo_pricer(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed)
 
 def monte_carlo_pricer(S, K, T, r, sigma, q=0.0, opt="call", n_sims=100000, n_steps=252, antithetic=True, seed=42):
-    """Monte Carlo optimisé avec gestion mémoire"""
     np.random.seed(seed)
     dt = T / n_steps
     
@@ -344,16 +335,13 @@ def monte_carlo_pricer(S, K, T, r, sigma, q=0.0, opt="call", n_sims=100000, n_st
         "paths": sample_paths
     }
 
-# ─── BACKTESTING SIMPLIFIÉ ───────────────────────────────────────────────────
+# ─── BACKTESTING ──────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=300)
 def backtest_strategy_cached(strategy, S0, K, T, r, sigma, q, n_days, n_sims):
     return backtest_strategy(strategy, S0, K, T, r, sigma, q, n_days, n_sims)
 
 def backtest_strategy(strategy, S0, K, T, r, sigma, q, n_days, n_sims=1000):
-    """
-    Backtest simplifié : P&L à expiration uniquement
-    """
     np.random.seed(42)
     
     dt = T / n_days
@@ -417,7 +405,7 @@ def backtest_strategy(strategy, S0, K, T, r, sigma, q, n_days, n_sims=1000):
 # ─── HELPERS PLOT ─────────────────────────────────────────────────────────────
 
 def sty(ax, title, xl, yl):
-    ax.set_title(title, color=TITLE, fontsize=7.65.35, pad=8.5, fontweight="normal")
+    ax.set_title(title, color=TITLE, fontsize=9.35, pad=8.5, fontweight="normal")
     ax.set_xlabel(xl, color=TITLE, fontsize=8.5, fontweight="normal")
     ax.set_ylabel(yl, color=TITLE, fontsize=8.5, fontweight="normal")
     ax.grid(True, alpha=0.3, linewidth=0.68)
@@ -575,15 +563,15 @@ if mode == "Pricing":
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
-                sp.set_linewidth(2)
+                sp.set_linewidth(1.7)
             pnl = (np.maximum(S_range-K, 0) - cost if opt=="call"
                    else np.maximum(K-S_range, 0) - cost)
             ax.axhline(0, color=GRAY, lw=1.7, alpha=0.7)
-            ax.axvline(K, color=YELLOW, lw=1.7.125, linestyle="--", alpha=0.95, label=f"Strike ${K:.0f}")
-            ax.axvline(be, color=GREEN, lw=1.7.125, linestyle="--", alpha=0.95, label=f"BE ${be:.2f}")
+            ax.axvline(K, color=YELLOW, lw=2.125, linestyle="--", alpha=0.95, label=f"Strike ${K:.0f}")
+            ax.axvline(be, color=GREEN, lw=2.125, linestyle="--", alpha=0.95, label=f"BE ${be:.2f}")
             ax.fill_between(S_range, pnl, 0, where=pnl>=0, alpha=0.3, color=GREEN)
             ax.fill_between(S_range, pnl, 0, where=pnl<0, alpha=0.3, color=RED)
-            ax.plot(S_range, pnl, color=ACCENT, lw=1.7.1255, label="P&L")
+            ax.plot(S_range, pnl, color=ACCENT, lw=2.55, label="P&L")
             ax.legend(fontsize=7.65, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, f"P&L · {opt.upper()}", "Spot ($)", "P&L ($)")
             st.pyplot(fig1, use_container_width=True)
@@ -595,9 +583,9 @@ if mode == "Pricing":
                 ax.set_facecolor(PANEL)
                 for sp in ax.spines.values(): 
                     sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(2)
+                    sp.set_linewidth(1.7)
                 ax.hist(mc_paths, bins=34, color=CYAN, alpha=0.7, edgecolor=CYAN, linewidth=0.5)
-                ax.axvline(K, color=YELLOW, lw=1.7.125, linestyle="--", alpha=0.9)
+                ax.axvline(K, color=YELLOW, lw=2.125, linestyle="--", alpha=0.9)
                 sty(ax, "Distribution S(T)", "Prix terminal ($)", "Freq")
                 st.pyplot(fig2, use_container_width=True)
                 plt.close(fig2)
@@ -643,17 +631,17 @@ elif mode == "Implied Volatility":
                 ax.set_facecolor(PANEL)
                 for sp in ax.spines.values(): 
                     sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(2)
+                    sp.set_linewidth(1.7)
                 
                 valid_calls = [(k/S, v*100) for k, v in zip(strikes, iv_calls) if v is not None]
                 if valid_calls:
                     x_calls, y_calls = zip(*valid_calls)
-                    ax.plot(x_calls, y_calls, color=CYAN, lw=1.7.1255, marker='o', markersize=5.1, label='Calls')
+                    ax.plot(x_calls, y_calls, color=CYAN, lw=2.55, marker='o', markersize=5.1, label='Calls')
                 
                 valid_puts = [(k/S, v*100) for k, v in zip(strikes, iv_puts) if v is not None]
                 if valid_puts:
                     x_puts, y_puts = zip(*valid_puts)
-                    ax.plot(x_puts, y_puts, color=PURPLE, lw=1.7.1255, marker='s', markersize=5.1, label='Puts')
+                    ax.plot(x_puts, y_puts, color=PURPLE, lw=2.55, marker='s', markersize=5.1, label='Puts')
                 
                 ax.axvline(1.0, color=GRAY, lw=1.5, linestyle=":", alpha=0.7, label="ATM")
                 ax.axhline(iv*100, color=ACCENT, lw=1.5, linestyle="--", alpha=0.7)
@@ -675,12 +663,12 @@ elif mode == "Implied Volatility":
                 ax.set_facecolor(PANEL)
                 for sp in ax.spines.values(): 
                     sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(2)
+                    sp.set_linewidth(1.7)
                 
                 valid_term = [(m*365, v*100) for m, v in zip(maturities, term_iv_calls) if v is not None]
                 if valid_term:
                     x_term, y_term = zip(*valid_term)
-                    ax.plot(x_term, y_term, color=CYAN, lw=1.7.1255, marker='o', markersize=5.1)
+                    ax.plot(x_term, y_term, color=CYAN, lw=2.55, marker='o', markersize=5.1)
                 
                 ax.axvline(T*365, color=GRAY, lw=1.5, linestyle=":", alpha=0.7)
                 ax.axhline(iv*100, color=ACCENT, lw=1.5, linestyle="--", alpha=0.7)
@@ -727,10 +715,10 @@ elif mode == "Backtesting":
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
-                sp.set_linewidth(2)
+                sp.set_linewidth(1.7)
             ax.hist(results_df['pnl'], bins=42, color=CYAN, alpha=0.7)
-            ax.axvline(mean_pnl, color=ACCENT, lw=1.7.1255, linestyle="--", label=f"Moyenne")
-            ax.axvline(0, color=GRAY, lw=1.7.125, linestyle="-", label="BE")
+            ax.axvline(mean_pnl, color=ACCENT, lw=2.55, linestyle="--", label=f"Moyenne")
+            ax.axvline(0, color=GRAY, lw=2.125, linestyle="-", label="BE")
             ax.legend(fontsize=8.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, f"Distribution P&L · {strategy.replace('_', ' ').title()}", "P&L ($)", "Freq")
             st.pyplot(fig_hist, use_container_width=True)
@@ -741,10 +729,10 @@ elif mode == "Backtesting":
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
-                sp.set_linewidth(2)
+                sp.set_linewidth(1.7)
             ax.scatter(results_df['final_spot'], results_df['pnl'], alpha=0.6, s=25.5, color=PURPLE)
-            ax.axhline(0, color=GRAY, lw=1.7.125, linestyle="-", label="BE")
-            ax.axvline(S, color=YELLOW, lw=1.7.125, linestyle="--", label=f"S0")
+            ax.axhline(0, color=GRAY, lw=2.125, linestyle="-", label="BE")
+            ax.axvline(S, color=YELLOW, lw=2.125, linestyle="--", label=f"S0")
             ax.legend(fontsize=8.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, "P&L vs Spot Final", "Spot final ($)", "P&L ($)")
             st.pyplot(fig_spot, use_container_width=True)
