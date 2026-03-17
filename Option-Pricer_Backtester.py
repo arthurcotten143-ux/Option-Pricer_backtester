@@ -1,7 +1,6 @@
 """
 Options Pricer — Streamlit
-Compatible GitHub Codespaces / navigateur
-Lancer avec : streamlit run Option-Pricer_Backtester.py
+Run with: streamlit run Option-Pricer_Backtester.py
 """
 
 import numpy as np
@@ -21,197 +20,80 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ─── SESSION STATE ────────────────────────────────────────────────────────────
+if "page" not in st.session_state:
+    st.session_state.page = "app"
+
+# ─── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    /* === FOND GÉNÉRAL === */
-    .main { 
-        background-color: #000000 !important; 
-    }
-    .block-container { 
-        padding-top: 1rem !important;
-        background-color: #000000 !important;
-    }
-    [data-testid="stSidebar"] { 
-        background-color: #0a0a0a !important; 
-    }
-    [data-testid="stVerticalBlock"],
-    [data-testid="stHorizontalBlock"] {
-        background-color: #000000 !important;
-    }
-    
-    /* === TITRES === */
-    h1 { 
-        color: #4a9eff !important; 
-        font-family: monospace !important; 
-        font-weight: bold !important;
-        font-size: 1.73rem !important;
-        text-shadow: 0 0 8px rgba(74, 158, 255, 0.4);
-    }
-    h2, h3 { 
-        color: #4a9eff !important; 
-        font-family: monospace !important; 
-        font-weight: normal !important;
-        font-size: 1.16rem !important;
-    }
-    
-    /* === TEXTE GÉNÉRAL === */
-    p, span, div, label, .stMarkdown { 
-        color: #ffffff !important; 
-        font-weight: normal !important;
-        font-size: 0.72rem !important;
-    }
-    
-    /* === INPUT TEXT BOX === */
-    input[type="number"],
-    input[type="text"],
-    .stNumberInput input,
-    .stTextInput input {
-        background-color: #0a0a0a !important;
-        color: #ffffff !important;
-        border: 2px solid #4a9eff !important;
-        font-weight: normal !important;
-    }
-    
-    /* === SELECT BOX === */
-    .stSelectbox > div > div,
-    select {
-        background-color: #0a0a0a !important;
-        color: #ffffff !important;
-        border: 2px solid #4a9eff !important;
-        font-weight: normal !important;
-    }
-    
-    /* === OPTIONS MENU DÉROULANT === */
-    .stSelectbox div[data-baseweb="select"] > div,
-    .stSelectbox ul,
-    .stSelectbox li,
-    [role="listbox"],
-    [role="option"] {
-        background-color: #0a0a0a !important;
-        color: #ffffff !important;
-    }
-    
-    .stSelectbox li:hover,
-    [role="option"]:hover {
-        background-color: #1a1a1a !important;
-        color: #4a9eff !important;
-    }
-    
-    /* === MÉTRIQUES === */
+    .main { background-color: #000000 !important; }
+    .block-container { padding-top: 1rem !important; background-color: #000000 !important; }
+    [data-testid="stSidebar"] { background-color: #0a0a0a !important; }
+    [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"] { background-color: #000000 !important; }
+    h1 { color: #4a9eff !important; font-family: monospace !important; font-weight: bold !important;
+         font-size: 1.73rem !important; text-shadow: 0 0 8px rgba(74,158,255,0.4); }
+    h2 { color: #4a9eff !important; font-family: monospace !important; font-weight: normal !important; font-size: 1.3rem !important; }
+    h3 { color: #06b6d4 !important; font-family: monospace !important; font-weight: normal !important; font-size: 1.05rem !important; }
+    h4 { color: #8b5cf6 !important; font-family: monospace !important; font-weight: normal !important; font-size: 0.95rem !important; }
+    p, span, div, label, .stMarkdown { color: #ffffff !important; font-weight: normal !important; font-size: 0.72rem !important; }
+    input[type="number"], input[type="text"], .stNumberInput input, .stTextInput input {
+        background-color: #0a0a0a !important; color: #ffffff !important; border: 2px solid #4a9eff !important; }
+    .stSelectbox > div > div, select {
+        background-color: #0a0a0a !important; color: #ffffff !important; border: 2px solid #4a9eff !important; }
+    .stSelectbox div[data-baseweb="select"] > div, .stSelectbox ul, .stSelectbox li,
+    [role="listbox"], [role="option"] { background-color: #0a0a0a !important; color: #ffffff !important; }
+    .stSelectbox li:hover, [role="option"]:hover { background-color: #1a1a1a !important; color: #4a9eff !important; }
     div[data-testid="metric-container"] {
-        background-color: #000000 !important;
-        border: 2px solid #4a9eff !important;
-        border-radius: 10px !important;
-        padding: 13px !important;
-        box-shadow: 0 0 15px rgba(74, 158, 255, 0.3) !important;
+        background-color: #000000 !important; border: 2px solid #4a9eff !important;
+        border-radius: 10px !important; padding: 13px !important; box-shadow: 0 0 15px rgba(74,158,255,0.3) !important; }
+    div[data-testid="metric-container"] label, div[data-testid="metric-container"] label p {
+        color: #4a9eff !important; font-weight: normal !important; font-size: 0.72rem !important; }
+    div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] > div, div[data-testid="stMetricValue"] p {
+        color: #ffffff !important; font-weight: normal !important; font-size: 1.3rem !important; }
+    div[data-testid="stMetricDelta"] { color: #4a9eff !important; }
+    .stAlert, .stSuccess, .stWarning { background-color: #0a0a0a !important; border: 2px solid #4a9eff !important; }
+    .stAlert p, .stSuccess p, .stWarning p { color: #ffffff !important; }
+    .dataframe { font-size: 0.72rem !important; font-family: monospace !important;
+                 background-color: #000000 !important; border: 2px solid #4a9eff !important; }
+    .dataframe th { background-color: #0a0a0a !important; color: #4a9eff !important;
+                    border: 1px solid #4a9eff !important; padding: 6px !important; }
+    .dataframe td { color: #ffffff !important; background-color: #000000 !important;
+                    border: 1px solid #333333 !important; padding: 6px !important; }
+    .author-link { color: #888888 !important; font-size: 0.72rem; font-family: monospace;
+                   margin-top: -10px; margin-bottom: 15px; }
+    .author-link a { color: #4a9eff !important; text-decoration: none; }
+    .author-link a:hover { color: #60a5fa !important; text-decoration: underline; }
+    .formula-box {
+        background-color: #0a0a0a; border: 1px solid #2a4a6b; border-left: 3px solid #4a9eff;
+        border-radius: 6px; padding: 14px 18px; margin: 10px 0; font-family: monospace;
+        font-size: 0.85rem; color: #e5e7eb; line-height: 1.8;
     }
-    div[data-testid="metric-container"] label,
-    div[data-testid="metric-container"] label p {
-        color: #4a9eff !important;
-        font-weight: normal !important;
-        font-size: 0.72rem !important;
-    }
-    div[data-testid="stMetricValue"],
-    div[data-testid="stMetricValue"] > div,
-    div[data-testid="stMetricValue"] p {
-        color: #ffffff !important;
-        font-weight: normal !important;
-        font-size: 1.3rem !important;
-    }
-    div[data-testid="stMetricDelta"] {
-        color: #4a9eff !important;
-        font-weight: normal !important;
-    }
-    
-    /* === ALERTES === */
-    .stAlert,
-    .stSuccess,
-    .stWarning {
-        background-color: #0a0a0a !important;
-        border: 2px solid #4a9eff !important;
-        color: #ffffff !important;
-    }
-    .stAlert p,
-    .stSuccess p,
-    .stWarning p {
-        color: #ffffff !important;
-        font-weight: normal !important;
-    }
-    
-    /* === DATAFRAMES === */
-    .dataframe {
-        font-size: 0.72rem !important;
-        font-family: monospace !important;
-        background-color: #000000 !important;
-        border: 2px solid #4a9eff !important;
-    }
-    .dataframe th {
-        background-color: #0a0a0a !important;
-        color: #4a9eff !important;
-        font-weight: normal !important;
-        border: 1px solid #4a9eff !important;
-        padding: 6px !important;
-    }
-    .dataframe td {
-        color: #ffffff !important;
-        background-color: #000000 !important;
-        border: 1px solid #333333 !important;
-        padding: 6px !important;
-        font-weight: normal !important;
-    }
-    
-    /* === LIEN AUTEUR === */
-    .author-link { 
-        color: #888888 !important; 
-        font-size: 0.72rem; 
-        font-family: monospace; 
-        margin-top: -10px;
-        margin-bottom: 15px;
-        font-weight: normal !important;
-    }
-    .author-link a {
-        color: #4a9eff !important;
-        text-decoration: none;
-        font-weight: normal !important;
-    }
-    .author-link a:hover {
-        color: #60a5fa !important;
-        text-decoration: underline;
-        text-shadow: 0 0 5px rgba(74, 158, 255, 0.5);
-    }
+    .tag-green  { background:#052e16; color:#10b981; border:1px solid #10b981; border-radius:4px; padding:2px 7px; font-size:0.68rem; font-family:monospace; }
+    .tag-blue   { background:#0c1a2e; color:#4a9eff; border:1px solid #4a9eff; border-radius:4px; padding:2px 7px; font-size:0.68rem; font-family:monospace; }
+    .tag-purple { background:#1a0a2e; color:#8b5cf6; border:1px solid #8b5cf6; border-radius:4px; padding:2px 7px; font-size:0.68rem; font-family:monospace; }
+    .tag-yellow { background:#1c1200; color:#f59e0b; border:1px solid #f59e0b; border-radius:4px; padding:2px 7px; font-size:0.68rem; font-family:monospace; }
+    .section-divider { border: none; border-top: 1px solid #1e2a38; margin: 28px 0; }
 </style>
 """, unsafe_allow_html=True)
 
-# ─── STYLE MATPLOTLIB ─────────────────────────────────────────────────────────
+# ─── MATPLOTLIB STYLE ─────────────────────────────────────────────────────────
 plt.rcParams.update({
-    "figure.facecolor": "#000000",
-    "axes.facecolor":   "#0a0a0a",
-    "axes.edgecolor":   "#4a9eff",
-    "axes.labelcolor":  "#4a9eff",
-    "text.color":       "#e5e7eb",
-    "xtick.color":      "#e5e7eb",
-    "ytick.color":      "#e5e7eb",
-    "grid.color":       "#374151",
-    "grid.linewidth":   0.5,
-    "font.family":      "monospace",
-    "font.weight":      "normal",
+    "figure.facecolor": "#000000", "axes.facecolor": "#0a0a0a",
+    "axes.edgecolor": "#4a9eff",   "axes.labelcolor": "#4a9eff",
+    "text.color": "#e5e7eb",       "xtick.color": "#e5e7eb",
+    "ytick.color": "#e5e7eb",      "grid.color": "#1e2a38",
+    "grid.linewidth": 0.35,        "grid.alpha": 0.5,
+    "font.family": "monospace",    "font.weight": "normal",
+    "xtick.major.width": 0.5,      "ytick.major.width": 0.5,
 })
 
-BG     = "#000000"
-PANEL  = "#0a0a0a"
-BORDER = "#4a9eff"
-ACCENT = "#4a9eff"
-GREEN  = "#10b981"
-RED    = "#ef4444"
-YELLOW = "#f59e0b"
-PURPLE = "#8b5cf6"
-CYAN   = "#06b6d4"
-ORANGE = "#f97316"
-GRAY   = "#6b7280"
-TEXT   = "#e5e7eb"
-TITLE  = "#4a9eff"
+BG, PANEL = "#000000", "#0a0a0a"
+ACCENT, GREEN, RED = "#4a9eff", "#10b981", "#ef4444"
+YELLOW, PURPLE, CYAN = "#f59e0b", "#8b5cf6", "#06b6d4"
+GRAY, TEXT, TITLE = "#6b7280", "#e5e7eb", "#4a9eff"
 
-# ─── BLACK-SCHOLES ────────────────────────────────────────────────────────────
+# ─── CORE FUNCTIONS ───────────────────────────────────────────────────────────
 
 def bs(S, K, T, r, sigma, q=0.0, opt="call"):
     if T <= 1e-10:
@@ -228,24 +110,19 @@ def bs(S, K, T, r, sigma, q=0.0, opt="call"):
 def greeks(S, K, T, r, sigma, q=0.0, opt="call"):
     if T <= 1e-10 or sigma <= 1e-10:
         return {k: 0.0 for k in ["delta","gamma","vega","theta","rho"]}
-    d1 = (np.log(S/K) + (r-q+0.5*sigma**2)*T) / (sigma*np.sqrt(T))
-    d2 = d1 - sigma*np.sqrt(T)
-    nd1 = norm.pdf(d1)
+    d1 = (np.log(S/K)+(r-q+0.5*sigma**2)*T)/(sigma*np.sqrt(T))
+    d2 = d1 - sigma*np.sqrt(T); nd1 = norm.pdf(d1)
     if opt == "call":
         delta = np.exp(-q*T)*norm.cdf(d1)
-        theta = (-(S*np.exp(-q*T)*nd1*sigma)/(2*np.sqrt(T))
-                 - r*K*np.exp(-r*T)*norm.cdf(d2)
-                 + q*S*np.exp(-q*T)*norm.cdf(d1)) / 365
-        rho = K*T*np.exp(-r*T)*norm.cdf(d2) / 100
+        theta = (-(S*np.exp(-q*T)*nd1*sigma)/(2*np.sqrt(T)) - r*K*np.exp(-r*T)*norm.cdf(d2) + q*S*np.exp(-q*T)*norm.cdf(d1)) / 365
+        rho   = K*T*np.exp(-r*T)*norm.cdf(d2) / 100
     else:
         delta = -np.exp(-q*T)*norm.cdf(-d1)
-        theta = (-(S*np.exp(-q*T)*nd1*sigma)/(2*np.sqrt(T))
-                 + r*K*np.exp(-r*T)*norm.cdf(-d2)
-                 - q*S*np.exp(-q*T)*norm.cdf(-d1)) / 365
-        rho = -K*T*np.exp(-r*T)*norm.cdf(-d2) / 100
+        theta = (-(S*np.exp(-q*T)*nd1*sigma)/(2*np.sqrt(T)) + r*K*np.exp(-r*T)*norm.cdf(-d2) - q*S*np.exp(-q*T)*norm.cdf(-d1)) / 365
+        rho   = -K*T*np.exp(-r*T)*norm.cdf(-d2) / 100
     gamma = np.exp(-q*T)*nd1 / (S*sigma*np.sqrt(T))
     vega  = S*np.exp(-q*T)*nd1*np.sqrt(T) / 100
-    return {"delta":delta, "gamma":gamma, "vega":vega, "theta":theta, "rho":rho}
+    return {"delta":delta,"gamma":gamma,"vega":vega,"theta":theta,"rho":rho}
 
 def prob_itm(S, K, T, r, sigma, q=0.0, opt="call"):
     if T <= 1e-10 or sigma <= 1e-10:
@@ -253,497 +130,633 @@ def prob_itm(S, K, T, r, sigma, q=0.0, opt="call"):
     d2 = (np.log(S/K)+(r-q-0.5*sigma**2)*T)/(sigma*np.sqrt(T))
     return norm.cdf(d2) if opt=="call" else norm.cdf(-d2)
 
-# ─── IMPLIED VOLATILITY ───────────────────────────────────────────────────────
-
 def implied_volatility(market_price, S, K, T, r, q=0.0, opt="call"):
-    if T <= 1e-10:
-        return np.nan
-    
-    intrinsic = max(S-K, 0) if opt=="call" else max(K-S, 0)
-    if market_price < intrinsic * 0.99:
-        return np.nan
-    
-    def objective(sigma):
-        try:
-            return bs(S, K, T, r, sigma, q, opt) - market_price
-        except:
-            return 1e10
-    
+    if T <= 1e-10: return np.nan
+    if market_price < (max(S-K,0) if opt=="call" else max(K-S,0)) * 0.99: return np.nan
     try:
-        iv = brentq(objective, 0.001, 5.0, maxiter=100)
-        return iv
+        return brentq(lambda sig: bs(S,K,T,r,sig,q,opt)-market_price, 0.001, 5.0, maxiter=100)
     except:
         return np.nan
 
-# ─── MONTE CARLO ──────────────────────────────────────────────────────────────
-
 @st.cache_data(ttl=300)
 def monte_carlo_pricer_cached(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed):
-    return monte_carlo_pricer(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed)
-
-def monte_carlo_pricer(S, K, T, r, sigma, q=0.0, opt="call", n_sims=100000, n_steps=252, antithetic=True, seed=42):
-    np.random.seed(seed)
-    dt = T / n_steps
-    
-    max_paths_to_store = min(1000, n_sims)
-    batch_size = min(n_sims, 100000)
-    n_batches = int(np.ceil(n_sims / batch_size))
-    
-    all_payoffs = []
-    sample_paths = None
-    
-    for batch in range(n_batches):
-        n_paths_batch = min(batch_size, n_sims - batch * batch_size)
-        n_paths = n_paths_batch // 2 if antithetic else n_paths_batch
-        
-        Z = np.random.standard_normal((n_paths, n_steps))
-        if antithetic:
-            Z = np.concatenate([Z, -Z], axis=0)
-        
-        drift = (r - q - 0.5*sigma**2) * dt
-        diffusion = sigma * np.sqrt(dt)
-        
-        log_returns = drift + diffusion * Z
-        log_price_paths = np.log(S) + np.cumsum(log_returns, axis=1)
-        S_T = np.exp(log_price_paths[:, -1])
-        
-        if batch == 0:
-            sample_paths = S_T[:max_paths_to_store].copy()
-        
-        if opt == "call":
-            payoffs = np.maximum(S_T - K, 0)
-        else:
-            payoffs = np.maximum(K - S_T, 0)
-        
-        all_payoffs.append(payoffs)
-        del Z, log_returns, log_price_paths, S_T, payoffs
-    
+    np.random.seed(seed); dt = T/n_steps
+    all_payoffs, sample_paths = [], None
+    for batch in range(int(np.ceil(n_sims/100000))):
+        nb = min(100000, n_sims-batch*100000)
+        n  = nb//2 if antithetic else nb
+        Z  = np.random.standard_normal((n, n_steps))
+        if antithetic: Z = np.concatenate([Z,-Z], axis=0)
+        S_T = S * np.exp(np.sum((r-q-0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z, axis=1))
+        if batch==0: sample_paths = S_T[:min(1000,n_sims)].copy()
+        all_payoffs.append(np.maximum(S_T-K,0) if opt=="call" else np.maximum(K-S_T,0))
+        del Z, S_T
     all_payoffs = np.concatenate(all_payoffs)
-    price = np.exp(-r*T) * np.mean(all_payoffs)
-    std_error = np.exp(-r*T) * np.std(all_payoffs) / np.sqrt(len(all_payoffs))
-    
-    g_bs = greeks(S, K, T, r, sigma, q, opt)
-    
-    return {
-        "price": price,
-        "std_error": std_error,
-        "delta": g_bs["delta"],
-        "gamma": g_bs["gamma"],
-        "vega": g_bs["vega"],
-        "theta": g_bs["theta"],
-        "rho": g_bs["rho"],
-        "paths": sample_paths
-    }
-
-# ─── BACKTESTING ──────────────────────────────────────────────────────────────
+    price = np.exp(-r*T)*np.mean(all_payoffs)
+    se    = np.exp(-r*T)*np.std(all_payoffs)/np.sqrt(len(all_payoffs))
+    g     = greeks(S,K,T,r,sigma,q,opt)
+    return {"price":price,"std_error":se,"paths":sample_paths,**g}
 
 @st.cache_data(ttl=300)
 def backtest_strategy_cached(strategy, S0, K, T, r, sigma, q, n_days, n_sims):
-    return backtest_strategy(strategy, S0, K, T, r, sigma, q, n_days, n_sims)
+    np.random.seed(42); dt = T/n_days
+    Z   = np.random.standard_normal((n_sims, n_days))
+    S_f = S0*np.exp(np.sum((r-q-0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z, axis=1))
+    rows = []
+    for Se in S_f:
+        if   strategy=="long_call":      pnl = max(Se-K,0) - bs(S0,K,T,r,sigma,q,"call")
+        elif strategy=="long_put":       pnl = max(K-Se,0) - bs(S0,K,T,r,sigma,q,"put")
+        elif strategy=="covered_call":   pnl = (Se-S0)+bs(S0,K,T,r,sigma,q,"call")-max(Se-K,0)
+        elif strategy=="protective_put": pnl = (Se-S0)-bs(S0,K,T,r,sigma,q,"put")+max(K-Se,0)
+        elif strategy=="straddle":       pnl = max(Se-K,0)+max(K-Se,0)-bs(S0,K,T,r,sigma,q,"call")-bs(S0,K,T,r,sigma,q,"put")
+        elif strategy=="strangle":
+            Kc,Kp = K*1.05,K*0.95
+            pnl   = max(Se-Kc,0)+max(Kp-Se,0)-bs(S0,Kc,T,r,sigma,q,"call")-bs(S0,Kp,T,r,sigma,q,"put")
+        rows.append({"final_spot":Se,"pnl":pnl,"return_pct":(pnl/S0)*100})
+    return pd.DataFrame(rows)
 
-def backtest_strategy(strategy, S0, K, T, r, sigma, q, n_days, n_sims=1000):
-    np.random.seed(42)
-    
-    dt = T / n_days
-    Z = np.random.standard_normal((n_sims, n_days))
-    drift = (r - q - 0.5*sigma**2) * dt
-    diffusion = sigma * np.sqrt(dt)
-    
-    log_returns = drift + diffusion * Z
-    log_price_paths = np.log(S0) + np.cumsum(log_returns, axis=1)
-    S_final = np.exp(log_price_paths[:, -1])
-    
-    results = []
-    
-    for S_end in S_final:
-        if strategy == "long_call":
-            entry = bs(S0, K, T, r, sigma, q, "call")
-            payoff = max(S_end - K, 0)
-            pnl = payoff - entry
-            
-        elif strategy == "long_put":
-            entry = bs(S0, K, T, r, sigma, q, "put")
-            payoff = max(K - S_end, 0)
-            pnl = payoff - entry
-            
-        elif strategy == "covered_call":
-            call_entry = bs(S0, K, T, r, sigma, q, "call")
-            stock_gain = S_end - S0
-            call_payoff = -max(S_end - K, 0)
-            pnl = stock_gain + call_entry + call_payoff
-            
-        elif strategy == "protective_put":
-            put_entry = bs(S0, K, T, r, sigma, q, "put")
-            stock_gain = S_end - S0
-            put_payoff = max(K - S_end, 0)
-            pnl = stock_gain - put_entry + put_payoff
-            
-        elif strategy == "straddle":
-            call_entry = bs(S0, K, T, r, sigma, q, "call")
-            put_entry = bs(S0, K, T, r, sigma, q, "put")
-            call_payoff = max(S_end - K, 0)
-            put_payoff = max(K - S_end, 0)
-            pnl = call_payoff + put_payoff - call_entry - put_entry
-            
-        elif strategy == "strangle":
-            K_call = K * 1.05
-            K_put = K * 0.95
-            call_entry = bs(S0, K_call, T, r, sigma, q, "call")
-            put_entry = bs(S0, K_put, T, r, sigma, q, "put")
-            call_payoff = max(S_end - K_call, 0)
-            put_payoff = max(K_put - S_end, 0)
-            pnl = call_payoff + put_payoff - call_entry - put_entry
-        
-        results.append({
-            "final_spot": S_end,
-            "pnl": pnl,
-            "return_pct": (pnl / S0) * 100
-        })
-    
-    return pd.DataFrame(results)
-
-# ─── HELPERS PLOT ─────────────────────────────────────────────────────────────
+# ─── PLOT HELPERS ─────────────────────────────────────────────────────────────
 
 def sty(ax, title, xl, yl):
-    ax.set_title(title, color=TITLE, fontsize=9.35, pad=8.5, fontweight="normal")
-    ax.set_xlabel(xl, color=TITLE, fontsize=8.5, fontweight="normal")
-    ax.set_ylabel(yl, color=TITLE, fontsize=8.5, fontweight="normal")
-    ax.grid(True, alpha=0.3, linewidth=0.68)
-    ax.tick_params(labelsize=7.65, colors=TEXT, width=1.02)
-    for spine in ax.spines.values():
-        spine.set_linewidth(1.7)
-        spine.set_edgecolor(BORDER)
+    ax.set_title(title, color=TITLE, fontsize=8.5, pad=7, fontweight="normal", loc="left")
+    ax.set_xlabel(xl, color="#8eafc2", fontsize=7.5, labelpad=6)
+    ax.set_ylabel(yl, color="#8eafc2", fontsize=7.5, labelpad=6)
+    ax.grid(True, alpha=0.18, linewidth=0.3, linestyle="--")
+    ax.tick_params(labelsize=7, colors="#9ca3af", width=0.5, length=3, pad=4)
+    for sp in ax.spines.values(): sp.set_linewidth(0.6); sp.set_edgecolor("#2a4a6b")
+    ax.set_axisbelow(True)
+
+def annotate_be(ax, val, ymin, color=GREEN):
+    ax.annotate(f"BE  ${val:.2f}", xy=(val, ymin), fontsize=6.5, color=color,
+                fontfamily="monospace", ha="center", va="top",
+                bbox=dict(boxstyle="round,pad=0.25", facecolor="#000000", edgecolor=color, linewidth=0.5, alpha=0.85))
+
+def vline(ax, x, label, color, ymin, ymax):
+    ax.axvline(x, color=color, lw=0.7, linestyle="--", alpha=0.75)
+    ax.annotate(label, xy=(x, ymin+(ymax-ymin)*0.03), fontsize=6.2, color=color,
+                fontfamily="monospace", ha="center", va="bottom", rotation=90,
+                bbox=dict(boxstyle="round,pad=0.2", facecolor="#000000", edgecolor=color, linewidth=0.4, alpha=0.8))
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
     st.markdown("## ◈ OPTIONS PRICER")
     st.markdown("---")
-    st.markdown("### Mode")
-    
-    mode = st.selectbox(
-        "Choisir le mode",
-        ["Pricing", "Implied Volatility", "Backtesting"]
-    )
-    
-    if mode == "Pricing":
-        st.markdown("---")
-        st.markdown("### Méthode de pricing")
-        pricing_method = st.selectbox("Modèle", ["Black-Scholes", "Monte Carlo"])
-    
-    st.markdown("---")
-    st.markdown("### Paramètres")
 
-    S     = st.number_input("Spot S ($)", value=100.0, step=1.0)
-    K     = st.number_input("Strike K ($)", value=100.0, step=1.0)
-    T_day = st.number_input("Maturité (jours)", value=30, step=1, min_value=1)
-    r     = st.number_input("Taux sans risque r (%)", value=5.0, step=0.1) / 100
-    sigma = st.number_input("Volatilité σ (%)", value=20.0, step=0.5) / 100
-    q     = st.number_input("Dividend yield q (%)", value=0.0, step=0.1) / 100
-    
-    if mode == "Pricing":
-        prem = st.number_input("Prime payée ($) [opt.]", value=0.0, step=0.01)
-    
-    opt = st.radio("Type d'option", ["call", "put"], horizontal=True)
-    
-    if mode == "Pricing" and pricing_method == "Monte Carlo":
-        st.markdown("---")
-        st.markdown("### Paramètres Monte Carlo")
-        n_sims = st.selectbox("Simulations", [10000, 50000, 100000, 250000], index=2)
-        n_steps = st.selectbox("Pas de temps", [50, 100, 252], index=2)
-        antithetic = st.checkbox("Variables antithétiques", value=True)
-        seed = st.number_input("Seed", value=42, step=1)
-    
-    elif mode == "Implied Volatility":
-        st.markdown("---")
-        st.markdown("### Prix de marché")
-        market_price = st.number_input("Prix observé ($)", value=5.0, step=0.01, min_value=0.01)
-    
-    elif mode == "Backtesting":
-        st.markdown("---")
-        st.markdown("### Paramètres Backtest")
-        strategy = st.selectbox(
-            "Stratégie",
-            ["long_call", "long_put", "covered_call", "protective_put", "straddle", "strangle"],
-            format_func=lambda x: x.replace('_', ' ').title()
-        )
-        backtest_days = st.slider("Horizon (jours)", 1, min(365, T_day), min(T_day, 30))
-        n_simulations = st.selectbox("Simulations", [100, 500, 1000, 2000], index=2)
+    # ── DOCS BUTTON ───────────────────────────────────────────────────────────
+    if st.session_state.page == "app":
+        if st.button("📐  Formula Reference", use_container_width=True):
+            st.session_state.page = "docs"
+            st.rerun()
+    else:
+        if st.button("◀  Back to App", use_container_width=True):
+            st.session_state.page = "app"
+            st.rerun()
 
     st.markdown("---")
-    run = st.button("⚡ RUN", use_container_width=True, type="primary")
 
-# ─── MAIN ─────────────────────────────────────────────────────────────────────
+    if st.session_state.page == "app":
+        st.markdown("### Mode")
+        mode = st.selectbox("Select mode", ["Pricing", "Implied Volatility", "Backtesting"])
 
-if mode == "Pricing":
-    st.markdown(f"# Options Pricer — {pricing_method}")
-elif mode == "Implied Volatility":
-    st.markdown("# Implied Volatility Calibrator")
-else:
-    st.markdown("# Strategy Backtester")
+        pricing_method = "Black-Scholes"
+        market_price   = 5.0
+        strategy       = "long_call"
+        backtest_days  = 30
+        n_simulations  = 1000
+        prem           = 0.0
+        n_sims         = 100000
+        n_steps        = 252
+        antithetic     = True
+        seed           = 42
 
-st.markdown(
-    '<div class="author-link">by <a href="https://www.linkedin.com/in/arthurcotten/" target="_blank">Arthur Cotten</a> • '
-    '<a href="https://github.com/arthurcotten" target="_blank">@arthurcotten</a></div>',
-    unsafe_allow_html=True
-)
-st.markdown("---")
-
-# ═══ MODE: PRICING ════════════════════════════════════════════════════════════
-
-if mode == "Pricing":
-    if run or True:
-        T = T_day / 365
-        
-        if pricing_method == "Black-Scholes":
-            price = bs(S, K, T, r, sigma, q, opt)
-            g = greeks(S, K, T, r, sigma, q, opt)
-            std_error = None
-            mc_paths = None
-        else:
-            with st.spinner('Calcul Monte Carlo...'):
-                try:
-                    mc_result = monte_carlo_pricer_cached(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed)
-                    price = mc_result["price"]
-                    std_error = mc_result["std_error"]
-                    g = {k: mc_result[k] for k in ["delta","gamma","vega","theta","rho"]}
-                    mc_paths = mc_result["paths"]
-                except Exception as e:
-                    st.error(f"❌ Erreur Monte Carlo: {str(e)}")
-                    st.stop()
-        
-        prob = prob_itm(S, K, T, r, sigma, q, opt)
-        cost = prem if prem > 0 else price
-        be = (K + cost) if opt=="call" else (K - cost)
-        intrin = max(S-K, 0) if opt=="call" else max(K-S, 0)
-        tv = price - intrin
-        moneyness = S/K
-        mon_lbl = ("ATM" if abs(moneyness-1)<0.01
-                   else "ITM" if (opt=="call" and moneyness>1) or (opt=="put" and moneyness<1)
-                   else "OTM")
-
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
-        c1.metric("Prix", f"${price:.4f}")
-        if std_error is not None:
-            c2.metric("Std Error", f"${std_error:.4f}")
-        else:
-            c2.metric("Break-even", f"${be:.2f}")
-        c3.metric("Prob ITM", f"{prob*100:.1f}%")
-        c4.metric("Time Value", f"${tv:.4f}")
-        c5.metric("Moneyness", mon_lbl)
-        c6.metric("Intrinsèque", f"${intrin:.4f}")
-
-        st.markdown("---")
-        st.markdown("### Greeks")
-        gc1, gc2, gc3, gc4, gc5 = st.columns(5)
-        gc1.metric("Delta", f"{g['delta']:+.5f}")
-        gc2.metric("Gamma", f"{g['gamma']:.6f}")
-        gc3.metric("Vega", f"{g['vega']:.5f}")
-        gc4.metric("Theta", f"{g['theta']:+.5f}")
-        gc5.metric("Rho", f"{g['rho']:+.5f}")
-
-        st.markdown("---")
-        alerts = []
-        if T < 7/365: alerts.append("⚠️ Maturité < 7 jours")
-        if abs(g["delta"]) < 0.10: alerts.append("⚠️ Delta très faible")
-        if tv < 0.005: alerts.append("⚠️ Time value nulle")
-        if prob < 0.15: alerts.append("⚠️ Prob ITM < 15%")
-        
-        for a in alerts:
-            st.warning(a)
-        if not alerts:
-            st.success("✓ OK")
-
-        S_range = np.linspace(S*0.7, S*1.3, 200)
-        
-        col1, col2 = st.columns([2, 1])
-
-        with col1:
-            fig1, ax = plt.subplots(figsize=(5.4, 3.1), facecolor=BG)
-            ax.set_facecolor(PANEL)
-            for sp in ax.spines.values(): 
-                sp.set_edgecolor(BORDER)
-                sp.set_linewidth(1.7)
-            pnl = (np.maximum(S_range-K, 0) - cost if opt=="call"
-                   else np.maximum(K-S_range, 0) - cost)
-            ax.axhline(0, color=GRAY, lw=1.7, alpha=0.7)
-            ax.axvline(K, color=YELLOW, lw=2.125, linestyle="--", alpha=0.95, label=f"Strike ${K:.0f}")
-            ax.axvline(be, color=GREEN, lw=2.125, linestyle="--", alpha=0.95, label=f"BE ${be:.2f}")
-            ax.fill_between(S_range, pnl, 0, where=pnl>=0, alpha=0.3, color=GREEN)
-            ax.fill_between(S_range, pnl, 0, where=pnl<0, alpha=0.3, color=RED)
-            ax.plot(S_range, pnl, color=ACCENT, lw=2.55, label="P&L")
-            ax.legend(fontsize=7.65, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-            sty(ax, f"P&L · {opt.upper()}", "Spot ($)", "P&L ($)")
-            st.pyplot(fig1, use_container_width=True)
-            plt.close(fig1)
-
-        with col2:
-            if pricing_method == "Monte Carlo" and mc_paths is not None:
-                fig2, ax = plt.subplots(figsize=(3.1, 3.1), facecolor=BG)
-                ax.set_facecolor(PANEL)
-                for sp in ax.spines.values(): 
-                    sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(1.7)
-                ax.hist(mc_paths, bins=34, color=CYAN, alpha=0.7, edgecolor=CYAN, linewidth=0.5)
-                ax.axvline(K, color=YELLOW, lw=2.125, linestyle="--", alpha=0.9)
-                sty(ax, "Distribution S(T)", "Prix terminal ($)", "Freq")
-                st.pyplot(fig2, use_container_width=True)
-                plt.close(fig2)
-
-# ═══ MODE: IMPLIED VOLATILITY ════════════════════════════════════════════════
-
-elif mode == "Implied Volatility":
-    if run or True:
-        T = T_day / 365
-        
-        with st.spinner('Calibration...'):
-            iv = implied_volatility(market_price, S, K, T, r, q, opt)
-        
-        if np.isnan(iv):
-            st.error("❌ Impossible de calibrer l'IV")
-        else:
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Vol Implicite", f"{iv*100:.2f}%")
-            col2.metric("Prix marché", f"${market_price:.4f}")
-            col3.metric("Prix théorique", f"${bs(S, K, T, r, iv, q, opt):.4f}")
-            g_iv = greeks(S, K, T, r, iv, q, opt)
-            col4.metric("Vega", f"{g_iv['vega']:.5f}")
-            
+        if mode == "Pricing":
             st.markdown("---")
-            st.markdown("### Volatility Skew")
-            
-            col_skew, col_term = st.columns(2)
-            
-            with col_skew:
-                strikes = np.linspace(S*0.7, S*1.3, 20)
-                iv_calls = []
-                iv_puts = []
-                
-                for strike in strikes:
-                    call_price = bs(S, strike, T, r, iv, q, "call")
-                    put_price = bs(S, strike, T, r, iv, q, "put")
-                    iv_call = implied_volatility(call_price, S, strike, T, r, q, "call")
-                    iv_put = implied_volatility(put_price, S, strike, T, r, q, "put")
-                    iv_calls.append(iv_call if not np.isnan(iv_call) else None)
-                    iv_puts.append(iv_put if not np.isnan(iv_put) else None)
-                
-                fig_skew, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG)
-                ax.set_facecolor(PANEL)
-                for sp in ax.spines.values(): 
-                    sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(1.7)
-                
-                valid_calls = [(k/S, v*100) for k, v in zip(strikes, iv_calls) if v is not None]
-                if valid_calls:
-                    x_calls, y_calls = zip(*valid_calls)
-                    ax.plot(x_calls, y_calls, color=CYAN, lw=2.55, marker='o', markersize=5.1, label='Calls')
-                
-                valid_puts = [(k/S, v*100) for k, v in zip(strikes, iv_puts) if v is not None]
-                if valid_puts:
-                    x_puts, y_puts = zip(*valid_puts)
-                    ax.plot(x_puts, y_puts, color=PURPLE, lw=2.55, marker='s', markersize=5.1, label='Puts')
-                
-                ax.axvline(1.0, color=GRAY, lw=1.5, linestyle=":", alpha=0.7, label="ATM")
-                ax.axhline(iv*100, color=ACCENT, lw=1.5, linestyle="--", alpha=0.7)
-                ax.legend(fontsize=7.65, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-                sty(ax, "Skew (Calls vs Puts)", "Moneyness (K/S)", "IV (%)")
-                st.pyplot(fig_skew, use_container_width=True)
-                plt.close(fig_skew)
-            
-            with col_term:
-                maturities = np.linspace(max(T, 7/365), min(T*3, 1.0), 12)
-                term_iv_calls = []
-                
-                for mat in maturities:
-                    call_price = bs(S, K, mat, r, iv, q, "call")
-                    iv_call = implied_volatility(call_price, S, K, mat, r, q, "call")
-                    term_iv_calls.append(iv_call if not np.isnan(iv_call) else None)
-                
-                fig_term, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG)
-                ax.set_facecolor(PANEL)
-                for sp in ax.spines.values(): 
-                    sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(1.7)
-                
-                valid_term = [(m*365, v*100) for m, v in zip(maturities, term_iv_calls) if v is not None]
-                if valid_term:
-                    x_term, y_term = zip(*valid_term)
-                    ax.plot(x_term, y_term, color=CYAN, lw=2.55, marker='o', markersize=5.1)
-                
-                ax.axvline(T*365, color=GRAY, lw=1.5, linestyle=":", alpha=0.7)
-                ax.axhline(iv*100, color=ACCENT, lw=1.5, linestyle="--", alpha=0.7)
-                sty(ax, "Term Structure", "Maturité (jours)", "IV (%)")
-                st.pyplot(fig_term, use_container_width=True)
-                plt.close(fig_term)
+            st.markdown("### Pricing model")
+            pricing_method = st.selectbox("Model", ["Black-Scholes", "Monte Carlo"])
 
-# ═══ MODE: BACKTESTING ═══════════════════════════════════════════════════════
+        st.markdown("---")
+        st.markdown("### Parameters")
+        S     = st.number_input("Spot S ($)",           value=100.0, step=1.0)
+        K     = st.number_input("Strike K ($)",         value=100.0, step=1.0)
+        T_day = st.number_input("Maturity (days)",      value=30,    step=1,   min_value=1)
+        r     = st.number_input("Risk-free rate r (%)", value=5.0,   step=0.1) / 100
+        sigma = st.number_input("Volatility σ (%)",     value=20.0,  step=0.5) / 100
+        q     = st.number_input("Dividend yield q (%)", value=0.0,   step=0.1) / 100
+        opt   = st.radio("Option type", ["call", "put"], horizontal=True)
 
-elif mode == "Backtesting":
-    if run or True:
-        T = T_day / 365
-        
-        with st.spinner(f'Backtesting...'):
+        if mode == "Pricing":
+            prem = st.number_input("Premium paid ($) [opt.]", value=0.0, step=0.01)
+            if pricing_method == "Monte Carlo":
+                st.markdown("---")
+                st.markdown("### Monte Carlo settings")
+                n_sims     = st.selectbox("Simulations", [10000,50000,100000,250000], index=2)
+                n_steps    = st.selectbox("Time steps",  [50,100,252], index=2)
+                antithetic = st.checkbox("Antithetic variates", value=True)
+                seed       = st.number_input("Seed", value=42, step=1)
+
+        elif mode == "Implied Volatility":
+            st.markdown("---")
+            st.markdown("### Market price")
+            market_price = st.number_input("Observed price ($)", value=5.0, step=0.01, min_value=0.01)
+
+        elif mode == "Backtesting":
+            st.markdown("---")
+            st.markdown("### Backtest settings")
+            strategy = st.selectbox("Strategy",
+                ["long_call","long_put","covered_call","protective_put","straddle","strangle"],
+                format_func=lambda x: x.replace('_',' ').title())
+            backtest_days = st.slider("Horizon (days)", 1, min(365,T_day), min(T_day,30))
+            n_simulations = st.selectbox("Simulations", [100,500,1000,2000], index=2)
+
+        st.markdown("---")
+        run = st.button("⚡  RUN", use_container_width=True, type="primary")
+
+    else:
+        S=K=100.0; T_day=30; r=0.05; sigma=0.20; q=0.0; opt="call"
+        mode="Pricing"; pricing_method="Black-Scholes"
+        prem=n_sims=n_steps=seed=0; antithetic=True
+        market_price=5.0; strategy="long_call"; backtest_days=30; n_simulations=1000; run=False
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE: DOCS
+# ══════════════════════════════════════════════════════════════════════════════
+
+if st.session_state.page == "docs":
+
+    st.markdown("# 📐 Formula Reference")
+    st.markdown('<div class="author-link">by <a href="https://www.linkedin.com/in/arthurcotten/">Arthur Cotten</a> • <a href="https://github.com/arthurcotten">@arthurcotten</a></div>', unsafe_allow_html=True)
+    st.markdown("---")
+
+    doc_tab1, doc_tab2, doc_tab3, doc_tab4 = st.tabs([
+        "① Black-Scholes", "② Monte Carlo", "③ Implied Volatility", "④ Backtesting"
+    ])
+
+    # ── BLACK-SCHOLES ─────────────────────────────────────────────────────────
+    with doc_tab1:
+        st.markdown("## Black-Scholes Model")
+        st.markdown("""
+The Black-Scholes model (1973) provides a closed-form analytical solution to price European-style options.
+It assumes the underlying follows a **Geometric Brownian Motion (GBM)** with constant volatility and no arbitrage.
+""")
+        st.markdown("### Core Formula")
+        st.markdown('<div class="formula-box">'
+            '<b>Call price:</b>  C = S·e^(-qT)·N(d1) - K·e^(-rT)·N(d2)<br><br>'
+            '<b>Put price:</b>   P = K·e^(-rT)·N(-d2) - S·e^(-qT)·N(-d1)<br><br>'
+            '<b>d1</b> = [ ln(S/K) + (r - q + σ²/2)·T ] / (σ·√T)<br>'
+            '<b>d2</b> = d1 - σ·√T<br><br>'
+            'N(·) = cumulative standard normal distribution function'
+            '</div>', unsafe_allow_html=True)
+
+        st.markdown("### Input Parameters")
+        st.dataframe(pd.DataFrame({
+            "Parameter": ["S", "K", "T", "r", "σ", "q"],
+            "Name": ["Spot price", "Strike price", "Time to maturity", "Risk-free rate", "Volatility", "Dividend yield"],
+            "Unit": ["$", "$", "years (= days/365)", "decimal (e.g. 0.05)", "decimal (e.g. 0.20)", "decimal (e.g. 0.02)"],
+            "Role": [
+                "Current market price of the underlying asset",
+                "Price at which the option can be exercised",
+                "Time remaining until expiration",
+                "Continuously compounded risk-free interest rate",
+                "Annualised standard deviation of log-returns — key driver of option price",
+                "Continuous dividend yield paid by the underlying"
+            ]
+        }), use_container_width=True, hide_index=True)
+
+        st.markdown("### Output Metrics")
+        st.dataframe(pd.DataFrame({
+            "Metric": ["Price", "Break-even", "Prob ITM", "Intrinsic Value", "Time Value", "Moneyness"],
+            "Formula / Definition": [
+                "C or P from above formula",
+                "Call: K + premium paid  /  Put: K - premium paid",
+                "Call: N(d2)  /  Put: N(-d2)",
+                "Call: max(S-K, 0)  /  Put: max(K-S, 0)",
+                "Price - Intrinsic Value",
+                "ITM if S>K (call) or S<K (put) / ATM if S≈K / OTM otherwise"
+            ],
+            "Interpretation": [
+                "Theoretical fair value of the option under BS assumptions",
+                "Spot level at which you neither gain nor lose at expiry",
+                "Risk-neutral probability the option expires in-the-money",
+                "Value if exercised immediately — minimum floor of option price",
+                "Premium paid for optionality over time — decays as T→0",
+                "Position of the strike relative to the current spot"
+            ]
+        }), use_container_width=True, hide_index=True)
+
+        st.markdown("### Greeks")
+        st.dataframe(pd.DataFrame({
+            "Greek": ["Delta (Δ)", "Gamma (Γ)", "Vega (ν)", "Theta (Θ)", "Rho (ρ)"],
+            "Formula": [
+                "Call: e^(-qT)·N(d1)  /  Put: -e^(-qT)·N(-d1)",
+                "e^(-qT)·N'(d1) / (S·σ·√T)",
+                "S·e^(-qT)·N'(d1)·√T / 100",
+                "See full formula (negative, daily decay)",
+                "Call: K·T·e^(-rT)·N(d2)/100  /  Put: -K·T·e^(-rT)·N(-d2)/100"
+            ],
+            "Range": ["[-1, 1]", "> 0", "> 0", "< 0 (long)", "Call > 0 / Put < 0"],
+            "Interpretation": [
+                "P&L change for +$1 in the underlying. Delta 0.5 = ATM option moves $0.50 per $1 in S",
+                "Rate of change of Delta. High Gamma near expiry = unstable hedge ratio",
+                "P&L change per +1% in volatility. Long options always have positive Vega",
+                "Daily P&L erosion from time alone. Accelerates near expiry (Theta burn)",
+                "P&L change per +1% in risk-free rate. Typically small vs other Greeks"
+            ]
+        }), use_container_width=True, hide_index=True)
+
+        st.markdown("### P&L Chart — How to Read It")
+        st.markdown("""
+- **Blue curve** — P&L at expiry as a function of the final spot price
+- **Green zone** — scenarios where you make money at expiry
+- **Red zone** — scenarios where you lose money at expiry
+- **BE label** — exact break-even spot level (where the curve crosses zero)
+- **K label** — strike: for a call, profit starts here; for a put, profit ends here
+- **S label** — current spot: where the underlying is trading today
+
+> The chart shows **expiry P&L only** — it does not reflect mark-to-market value before expiry, which would be the BS price curve, not the kinked payoff.
+""")
+
+        st.markdown("### Key Assumptions & Limitations")
+        st.markdown("""
+- Volatility is **constant** over the life of the option (not true in practice — see Vol Skew)
+- **No early exercise** — only valid for European options
+- **Log-normal** distribution of returns — underestimates fat tails / crash risk
+- **Continuous** hedging with no transaction costs
+- Risk-free rate is constant and known
+""")
+
+    # ── MONTE CARLO ───────────────────────────────────────────────────────────
+    with doc_tab2:
+        st.markdown("## Monte Carlo Simulation")
+        st.markdown("""
+Monte Carlo (MC) pricing simulates thousands of possible price paths for the underlying asset and averages the
+discounted payoffs. It is more flexible than Black-Scholes: it can handle path-dependent payoffs, stochastic
+volatility, and complex structures. Here it is applied to vanilla options as a validation and learning tool.
+""")
+        st.markdown("### Price Path Simulation (GBM)")
+        st.markdown('<div class="formula-box">'
+            '<b>Discretised GBM (Euler scheme):</b><br><br>'
+            'S(t+dt) = S(t) · exp[ (r - q - σ²/2)·dt  +  σ·√dt·Z ]<br><br>'
+            'where  Z ~ N(0,1)  (standard normal random draw)<br><br>'
+            '<b>Terminal price after N steps:</b><br>'
+            'S(T) = S(0) · exp[ Σ { (r-q-σ²/2)·dt + σ·√dt·Zᵢ } ]  for i=1..N'
+            '</div>', unsafe_allow_html=True)
+
+        st.markdown("### Option Price Estimate")
+        st.markdown('<div class="formula-box">'
+            '<b>Call payoff per path:</b>  max(S(T) - K, 0)<br>'
+            '<b>Put payoff per path:</b>   max(K - S(T), 0)<br><br>'
+            '<b>MC Price estimate:</b>  C ≈ e^(-rT) · (1/M) · Σ payoff(i)  for i=1..M paths<br><br>'
+            '<b>Standard Error:</b>  SE = e^(-rT) · std(payoffs) / √M<br><br>'
+            'As M → ∞, MC price → BS price (same model assumptions)'
+            '</div>', unsafe_allow_html=True)
+
+        st.markdown("### Variance Reduction — Antithetic Variates")
+        st.markdown('<div class="formula-box">'
+            'For each random draw Z, also simulate -Z.<br>'
+            'This creates pairs of negatively correlated paths, reducing variance of the estimator<br>'
+            'without increasing the number of model evaluations.<br><br>'
+            'Effective sample size doubles with minimal computational overhead.'
+            '</div>', unsafe_allow_html=True)
+
+        st.markdown("### MC-Specific Settings")
+        st.dataframe(pd.DataFrame({
+            "Setting": ["Simulations (M)", "Time steps (N)", "Antithetic variates", "Seed"],
+            "Effect": [
+                "More paths → lower Standard Error → more accurate price. SE ∝ 1/√M",
+                "More steps → finer discretisation of the path. 252 = daily steps over 1 year",
+                "Halves variance of the estimator. Always recommended unless benchmarking",
+                "Fixes the random number sequence for reproducibility"
+            ],
+            "Recommended": ["100,000+", "252 (daily)", "On", "Any fixed integer"]
+        }), use_container_width=True, hide_index=True)
+
+        st.markdown("### Output — Distribution Chart")
+        st.markdown("""
+The histogram displays the **distribution of simulated terminal prices S(T)** across all M paths.
+
+- **Shape** — log-normal bell curve centred around the forward price F = S·e^((r-q)T)
+- **Width** — increases with σ and T: higher volatility = fatter, wider distribution
+- **K line** — shows how many paths finish in-the-money (right of K for calls, left for puts)
+- **Useful insight** — visualises the probability mass in/out of the money and the tail risk
+""")
+
+    # ── IMPLIED VOLATILITY ────────────────────────────────────────────────────
+    with doc_tab3:
+        st.markdown("## Implied Volatility Calibration")
+        st.markdown("""
+Implied Volatility (IV) is the volatility value σ* that, when plugged into the Black-Scholes formula,
+reproduces the observed market price of an option. It is the market's forward-looking estimate of
+uncertainty — not a historical measure.
+""")
+        st.markdown("### Calibration Problem")
+        st.markdown('<div class="formula-box">'
+            '<b>Find σ* such that:</b><br><br>'
+            'BS(S, K, T, r, σ*, q) = C_market<br><br>'
+            'There is no closed-form inverse of BS with respect to σ.<br>'
+            'This equation is solved numerically using <b>Brent\'s root-finding method</b>:<br>'
+            '→ Bracket: σ ∈ [0.001, 5.0]  (0.1% to 500% vol)<br>'
+            '→ Convergence: typically < 100 iterations<br>'
+            '→ Returns NaN if no solution exists (e.g. market price < intrinsic value)'
+            '</div>', unsafe_allow_html=True)
+
+        st.markdown("### Output Metrics")
+        st.dataframe(pd.DataFrame({
+            "Metric": ["Implied Vol", "Market price", "Theoretical price", "Vega"],
+            "Meaning": [
+                "σ* — the volatility implied by the observed market price",
+                "The option price as traded/quoted in the market",
+                "BS price recalculated using σ* — should equal market price (sanity check)",
+                "Sensitivity of option price to a +1% change in σ* — measures IV risk"
+            ]
+        }), use_container_width=True, hide_index=True)
+
+        st.markdown("### Volatility Skew Chart")
+        st.markdown("""
+Plots IV against **moneyness** (K/S) for both calls and puts at the same maturity.
+
+- **Flat line** — Black-Scholes world: constant IV across all strikes (never observed in practice)
+- **Downward slope (left skew)** — typical for equity markets: OTM puts are expensive (crash insurance demand), OTM calls are cheap. This is called the **put skew** or **volatility smirk**
+- **Smile** — IV is elevated for both OTM puts and OTM calls, common in FX and commodity markets
+- **ATM line** — the calibrated IV for your input strike. All other strikes are rescaled from this point
+
+> In this tool the skew is synthetic — it recalibrates IV for each strike using the same input σ. It illustrates the mechanics of the skew, not real market data.
+""")
+
+        st.markdown("### Term Structure Chart")
+        st.markdown("""
+Plots IV against **maturity** for a fixed strike.
+
+- **Upward sloping (contango)** — typical in calm markets: longer-dated options carry more uncertainty premium
+- **Inverted (backwardation)** — near-term IV is elevated vs long-term, signals short-term stress or upcoming event (earnings, election, central bank)
+- **Flat** — market pricing uniform uncertainty across maturities
+
+> Same synthetic rescaling applies here. The term structure reflects how volatility changes with time to expiry, holding the strike fixed.
+""")
+
+    # ── BACKTESTING ───────────────────────────────────────────────────────────
+    with doc_tab4:
+        st.markdown("## Strategy Backtesting")
+        st.markdown("""
+The backtester simulates M Monte Carlo price paths and computes the **realised P&L** of a given options strategy
+on each path. It provides a statistical view of strategy performance: win rate, distribution of outcomes, tail risk.
+""")
+        st.markdown("### Path Generation")
+        st.markdown('<div class="formula-box">'
+            'Same GBM discretisation as Monte Carlo pricing.<br>'
+            'M paths of length N days are simulated. Only the <b>terminal price S(T)</b> is used for P&L.<br><br>'
+            'For each path:  P&L = Payoff at expiry - Entry cost at inception'
+            '</div>', unsafe_allow_html=True)
+
+        st.markdown("### Strategy P&L Formulas")
+        st.dataframe(pd.DataFrame({
+            "Strategy": ["Long Call","Long Put","Covered Call","Protective Put","Straddle","Strangle"],
+            "P&L Formula": [
+                "max(S(T)-K, 0) - C₀",
+                "max(K-S(T), 0) - P₀",
+                "(S(T)-S₀) + C₀ - max(S(T)-K, 0)",
+                "(S(T)-S₀) - P₀ + max(K-S(T), 0)",
+                "max(S(T)-K,0) + max(K-S(T),0) - C₀ - P₀",
+                "max(S(T)-Kc,0) + max(Kp-S(T),0) - Cc - Pp  [Kc=K×1.05, Kp=K×0.95]"
+            ],
+            "Max Gain": ["Unlimited","K-premium","C₀ (capped at K)","Unlimited","Unlimited","Unlimited"],
+            "Max Loss": ["Premium C₀","Premium P₀","Stock can go to 0","Premium P₀","C₀+P₀","Cc+Pp"],
+            "Breakeven": ["K+C₀","K-P₀","S₀-C₀","S₀+P₀","K±(C₀+P₀)","Kc+premium or Kp-premium"]
+        }), use_container_width=True, hide_index=True)
+
+        st.markdown("### Output Metrics")
+        st.dataframe(pd.DataFrame({
+            "Metric": ["Avg P&L","Median P&L","Win Rate","Max Gain","Max Loss","Sharpe"],
+            "Formula": [
+                "Mean of all path P&Ls",
+                "50th percentile of P&L distribution",
+                "% of paths with P&L > 0",
+                "max(P&L across all paths)",
+                "min(P&L across all paths)",
+                "Avg P&L / Std(P&L) × √252"
+            ],
+            "Interpretation": [
+                "Expected value of the strategy under GBM — positive does not mean risk-free",
+                "More robust than mean when distribution is skewed",
+                "How often the strategy expires in profit — high WR ≠ good strategy (e.g. covered call)",
+                "Best-case scenario across simulations",
+                "Worst-case scenario — key metric for risk management",
+                "Annualised risk-adjusted return. >1 = good, >2 = strong, <0 = destroys value"
+            ]
+        }), use_container_width=True, hide_index=True)
+
+        st.markdown("### P&L Distribution Chart — How to Read It")
+        st.markdown("""
+- **Green bars** — scenarios where the strategy expired profitable
+- **Red bars** — scenarios where the strategy expired at a loss
+- **Avg line (blue dashed)** — expected P&L across all simulations
+- **BE line (grey)** — P&L = 0; divides winners from losers
+- **Shape of distribution** — skewed right = most losses are small, few large wins (e.g. long call). Skewed left = most wins are small, few large losses (e.g. covered call, short option)
+""")
+
+        st.markdown("### P&L vs Final Spot Chart — How to Read It")
+        st.markdown("""
+- **X-axis** — final spot price at expiry across all simulated paths
+- **Y-axis** — realised P&L for that path
+- **Green dots** — profitable outcomes; **purple dots** — loss outcomes
+- **S0 line (yellow)** — starting spot, separates paths that moved up vs down
+- **K line (grey)** — strike level: for a call, all green dots should be to the right of K (where S(T) > K)
+- **BE line** — P&L = 0 horizontal; allows you to visually read the breakeven spot
+- **Shape** — reveals the payoff profile visually. A covered call will show a flat cap at the top (profit capped at K); a long call will show a straight diagonal rising slope above K
+""")
+
+        st.markdown("### Percentile Table")
+        st.markdown("""
+| Percentile | Meaning |
+|---|---|
+| 5% | Worst 5% of outcomes — tail risk / near worst-case |
+| 25% | Lower quartile — typical bad outcome |
+| 50% | Median outcome — most representative central scenario |
+| 75% | Upper quartile — typical good outcome |
+| 95% | Best 5% of outcomes — near best-case |
+
+> A strategy with a high Win Rate but a very negative 5th percentile is a **short-volatility profile** — you win often but when you lose, you lose big (e.g. short straddle equivalent).
+""")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE: APP
+# ══════════════════════════════════════════════════════════════════════════════
+
+elif st.session_state.page == "app":
+
+    title_map = {"Pricing": f"Options Pricer — {pricing_method}",
+                 "Implied Volatility": "Implied Volatility Calibrator",
+                 "Backtesting": "Strategy Backtester"}
+    st.markdown(f"# {title_map[mode]}")
+    st.markdown('<div class="author-link">by <a href="https://www.linkedin.com/in/arthurcotten/">Arthur Cotten</a> • <a href="https://github.com/arthurcotten">@arthurcotten</a></div>', unsafe_allow_html=True)
+    st.markdown("---")
+
+    T = T_day / 365
+
+    # ── PRICING ───────────────────────────────────────────────────────────────
+    if mode == "Pricing":
+        if pricing_method == "Black-Scholes":
+            price=bs(S,K,T,r,sigma,q,opt); g=greeks(S,K,T,r,sigma,q,opt)
+            std_error=None; mc_paths=None
+        else:
+            with st.spinner("Running Monte Carlo..."):
+                try:
+                    mc=monte_carlo_pricer_cached(S,K,T,r,sigma,q,opt,n_sims,n_steps,antithetic,int(seed))
+                    price=mc["price"]; std_error=mc["std_error"]; mc_paths=mc["paths"]
+                    g={k:mc[k] for k in ["delta","gamma","vega","theta","rho"]}
+                except Exception as e:
+                    st.error(f"Monte Carlo error: {e}"); st.stop()
+
+        prob=prob_itm(S,K,T,r,sigma,q,opt)
+        cost=prem if prem>0 else price
+        be=(K+cost) if opt=="call" else (K-cost)
+        intr=max(S-K,0) if opt=="call" else max(K-S,0); tv=price-intr
+        mon=S/K; mlbl="ATM" if abs(mon-1)<0.01 else ("ITM" if (opt=="call" and mon>1) or (opt=="put" and mon<1) else "OTM")
+
+        c1,c2,c3,c4,c5,c6=st.columns(6)
+        c1.metric("Price",      f"${price:.4f}")
+        c2.metric("Std Error" if std_error else "Break-even", f"${std_error:.4f}" if std_error else f"${be:.2f}")
+        c3.metric("Prob ITM",   f"{prob*100:.1f}%")
+        c4.metric("Time Value", f"${tv:.4f}")
+        c5.metric("Moneyness",  mlbl)
+        c6.metric("Intrinsic",  f"${intr:.4f}")
+
+        st.markdown("---"); st.markdown("### Greeks")
+        g1,g2,g3,g4,g5=st.columns(5)
+        g1.metric("Delta",f"{g['delta']:+.5f}"); g2.metric("Gamma",f"{g['gamma']:.6f}")
+        g3.metric("Vega", f"{g['vega']:.5f}");  g4.metric("Theta",f"{g['theta']:+.5f}")
+        g5.metric("Rho",  f"{g['rho']:+.5f}")
+
+        st.markdown("---")
+        alr=[]
+        if T<7/365:              alr.append("⚠️ Maturity < 7 days")
+        if abs(g["delta"])<0.10: alr.append("⚠️ Delta very low")
+        if tv<0.005:             alr.append("⚠️ Time value near zero")
+        if prob<0.15:            alr.append("⚠️ Prob ITM < 15%")
+        for a in alr: st.warning(a)
+        if not alr: st.success("✓ OK")
+
+        Sr=np.linspace(S*0.7,S*1.3,300)
+        col1,col2=st.columns([2,1])
+        with col1:
+            fig,ax=plt.subplots(figsize=(5.6,3.2),facecolor=BG); ax.set_facecolor(PANEL)
+            pnl=(np.maximum(Sr-K,0)-cost if opt=="call" else np.maximum(K-Sr,0)-cost)
+            ym,yM=pnl.min(),pnl.max(); yp=(yM-ym)*0.12
+            ax.fill_between(Sr,pnl,0,where=pnl>=0,alpha=0.12,color=GREEN,zorder=1)
+            ax.fill_between(Sr,pnl,0,where=pnl<0, alpha=0.12,color=RED,  zorder=1)
+            ax.plot(Sr,pnl,color=ACCENT,lw=1.2,zorder=3)
+            ax.axhline(0,color=GRAY,lw=0.5,alpha=0.5,zorder=2)
+            vline(ax,K, f"K  ${K:.0f}",   YELLOW,    ym-yp,yM)
+            vline(ax,be,f"BE  ${be:.2f}", GREEN,     ym-yp,yM)
+            vline(ax,S, f"S  ${S:.0f}",   "#9ca3af", ym-yp,yM)
+            ax.set_ylim(ym-yp*1.8,yM+yp); annotate_be(ax,be,ym-yp*1.6)
+            sty(ax,f"P&L  ·  {opt.upper()}","Spot ($)","P&L ($)")
+            fig.tight_layout(pad=1.2); st.pyplot(fig,use_container_width=True); plt.close(fig)
+        with col2:
+            if pricing_method=="Monte Carlo" and mc_paths is not None:
+                fig2,ax2=plt.subplots(figsize=(3.1,3.2),facecolor=BG); ax2.set_facecolor(PANEL)
+                ax2.hist(mc_paths,bins=34,color=CYAN,alpha=0.6,edgecolor="none")
+                yh=ax2.get_ylim()[1]; vline(ax2,K,f"K  ${K:.0f}",YELLOW,0,yh)
+                sty(ax2,"Distribution  S(T)","Terminal price ($)","Freq")
+                fig2.tight_layout(pad=1.2); st.pyplot(fig2,use_container_width=True); plt.close(fig2)
+
+    # ── IMPLIED VOLATILITY ────────────────────────────────────────────────────
+    elif mode == "Implied Volatility":
+        with st.spinner("Calibrating..."):
+            iv=implied_volatility(market_price,S,K,T,r,q,opt)
+        if np.isnan(iv):
+            st.error("❌ Cannot calibrate IV — check inputs")
+        else:
+            c1,c2,c3,c4=st.columns(4)
+            c1.metric("Implied Vol",        f"{iv*100:.2f}%")
+            c2.metric("Market price",       f"${market_price:.4f}")
+            c3.metric("Theoretical price",  f"${bs(S,K,T,r,iv,q,opt):.4f}")
+            c4.metric("Vega",               f"{greeks(S,K,T,r,iv,q,opt)['vega']:.5f}")
+            st.markdown("---"); st.markdown("### Volatility Surface")
+            cs,ct=st.columns(2)
+            with cs:
+                stks=np.linspace(S*0.7,S*1.3,20)
+                ivc=[implied_volatility(bs(S,k,T,r,iv,q,"call"),S,k,T,r,q,"call") for k in stks]
+                ivp=[implied_volatility(bs(S,k,T,r,iv,q,"put"), S,k,T,r,q,"put")  for k in stks]
+                fig_s,ax=plt.subplots(figsize=(4.8,3.4),facecolor=BG); ax.set_facecolor(PANEL)
+                vc=[(k/S,v*100) for k,v in zip(stks,ivc) if v and not np.isnan(v)]
+                vp_=[(k/S,v*100) for k,v in zip(stks,ivp) if v and not np.isnan(v)]
+                if vc: xc,yc=zip(*vc); ax.plot(xc,yc,color=CYAN,  lw=1.1,marker='o',markersize=3.2,label='Calls',markeredgewidth=0)
+                if vp_: xp,yp=zip(*vp_); ax.plot(xp,yp,color=PURPLE,lw=1.1,marker='s',markersize=3.2,label='Puts', markeredgewidth=0)
+                ax.axvline(1.0,   color=GRAY,  lw=0.5,linestyle=":",alpha=0.6,label="ATM")
+                ax.axhline(iv*100,color=ACCENT,lw=0.5,linestyle="--",alpha=0.6)
+                ax.legend(fontsize=7,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.8)
+                sty(ax,"Skew  ·  Calls vs Puts","Moneyness (K/S)","IV (%)")
+                fig_s.tight_layout(pad=1.2); st.pyplot(fig_s,use_container_width=True); plt.close(fig_s)
+            with ct:
+                mats=np.linspace(max(T,7/365),min(T*3,1.0),12)
+                ivt=[implied_volatility(bs(S,K,m,r,iv,q,"call"),S,K,m,r,q,"call") for m in mats]
+                fig_t,ax=plt.subplots(figsize=(4.8,3.4),facecolor=BG); ax.set_facecolor(PANEL)
+                vt=[(m*365,v*100) for m,v in zip(mats,ivt) if v and not np.isnan(v)]
+                if vt: xt,yt=zip(*vt); ax.plot(xt,yt,color=CYAN,lw=1.1,marker='o',markersize=3.2,markeredgewidth=0)
+                ax.axvline(T*365, color=GRAY,  lw=0.5,linestyle=":",alpha=0.6)
+                ax.axhline(iv*100,color=ACCENT,lw=0.5,linestyle="--",alpha=0.6)
+                sty(ax,"Term Structure","Maturity (days)","IV (%)")
+                fig_t.tight_layout(pad=1.2); st.pyplot(fig_t,use_container_width=True); plt.close(fig_t)
+
+    # ── BACKTESTING ───────────────────────────────────────────────────────────
+    elif mode == "Backtesting":
+        with st.spinner("Running backtest..."):
             try:
-                results_df = backtest_strategy_cached(strategy, S, K, T, r, sigma, q, backtest_days, n_simulations)
+                df=backtest_strategy_cached(strategy,S,K,T,r,sigma,q,backtest_days,n_simulations)
             except Exception as e:
-                st.error(f"❌ Erreur: {str(e)}")
-                st.stop()
-        
-        mean_pnl = results_df['pnl'].mean()
-        median_pnl = results_df['pnl'].median()
-        std_pnl = results_df['pnl'].std()
-        win_rate = (results_df['pnl'] > 0).sum() / len(results_df) * 100
-        max_gain = results_df['pnl'].max()
-        max_loss = results_df['pnl'].min()
-        sharpe = (mean_pnl / std_pnl * np.sqrt(252)) if std_pnl > 0 else 0
-        
+                st.error(f"Error: {e}"); st.stop()
+
+        mp=df['pnl'].mean(); med=df['pnl'].median(); sdp=df['pnl'].std()
+        wr=(df['pnl']>0).sum()/len(df)*100; mg=df['pnl'].max(); ml=df['pnl'].min()
+        shr=(mp/sdp*np.sqrt(252)) if sdp>0 else 0
+
         st.markdown("### Performance")
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
-        c1.metric("P&L Moyen", f"${mean_pnl:.2f}")
-        c2.metric("P&L Médian", f"${median_pnl:.2f}")
-        c3.metric("Win Rate", f"{win_rate:.1f}%")
-        c4.metric("Max Gain", f"${max_gain:.2f}")
-        c5.metric("Max Loss", f"${max_loss:.2f}")
-        c6.metric("Sharpe", f"{sharpe:.3f}")
-        
+        c1,c2,c3,c4,c5,c6=st.columns(6)
+        c1.metric("Avg P&L",   f"${mp:.2f}"); c2.metric("Median P&L",f"${med:.2f}")
+        c3.metric("Win Rate",  f"{wr:.1f}%"); c4.metric("Max Gain",  f"${mg:.2f}")
+        c5.metric("Max Loss",  f"${ml:.2f}"); c6.metric("Sharpe",    f"{shr:.3f}")
         st.markdown("---")
-        
-        col_hist, col_scatter = st.columns(2)
-        
-        with col_hist:
-            fig_hist, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG)
-            ax.set_facecolor(PANEL)
-            for sp in ax.spines.values(): 
-                sp.set_edgecolor(BORDER)
-                sp.set_linewidth(1.7)
-            ax.hist(results_df['pnl'], bins=42, color=CYAN, alpha=0.7)
-            ax.axvline(mean_pnl, color=ACCENT, lw=2.55, linestyle="--", label=f"Moyenne")
-            ax.axvline(0, color=GRAY, lw=2.125, linestyle="-", label="BE")
-            ax.legend(fontsize=8.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-            sty(ax, f"Distribution P&L · {strategy.replace('_', ' ').title()}", "P&L ($)", "Freq")
-            st.pyplot(fig_hist, use_container_width=True)
-            plt.close(fig_hist)
-        
-        with col_scatter:
-            fig_spot, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG)
-            ax.set_facecolor(PANEL)
-            for sp in ax.spines.values(): 
-                sp.set_edgecolor(BORDER)
-                sp.set_linewidth(1.7)
-            ax.scatter(results_df['final_spot'], results_df['pnl'], alpha=0.6, s=25.5, color=PURPLE)
-            ax.axhline(0, color=GRAY, lw=2.125, linestyle="-", label="BE")
-            ax.axvline(S, color=YELLOW, lw=2.125, linestyle="--", label=f"S0")
-            ax.legend(fontsize=8.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-            sty(ax, "P&L vs Spot Final", "Spot final ($)", "P&L ($)")
-            st.pyplot(fig_spot, use_container_width=True)
-            plt.close(fig_spot)
-        
-        st.markdown("---")
-        st.markdown("### Percentiles")
-        percentiles = [5, 25, 50, 75, 95]
-        pct_data = {
-            "Percentile": [f"{p}%" for p in percentiles],
-            "P&L ($)": [f"${results_df['pnl'].quantile(p/100):.2f}" for p in percentiles],
-            "Return (%)": [f"{results_df['return_pct'].quantile(p/100):.2f}%" for p in percentiles]
-        }
-        st.dataframe(pd.DataFrame(pct_data), use_container_width=True, hide_index=True)
+        ch,cs2=st.columns(2)
+        with ch:
+            fig_h,ax=plt.subplots(figsize=(4.8,3.4),facecolor=BG); ax.set_facecolor(PANEL)
+            pa=df['pnl'].values; bns=np.linspace(pa.min(),pa.max(),44)
+            ax.hist(pa[pa>=0],bins=bns,color=GREEN,alpha=0.55,edgecolor="none")
+            ax.hist(pa[pa<0], bins=bns,color=RED,  alpha=0.55,edgecolor="none")
+            yh2=ax.get_ylim()[1]
+            ax.axvline(mp,color=ACCENT,lw=0.8,linestyle="--",alpha=0.9,label=f"Avg  ${mp:.2f}")
+            ax.axvline(0, color=GRAY,  lw=0.5,alpha=0.6,label="BE  $0.00")
+            ax.set_ylim(0,yh2*1.12)
+            ax.annotate("BE  $0.00",xy=(0,yh2*0.02),fontsize=6.2,color=GRAY,fontfamily="monospace",
+                        ha="center",va="bottom",bbox=dict(boxstyle="round,pad=0.2",facecolor="#000000",edgecolor=GRAY,linewidth=0.4,alpha=0.85))
+            ax.legend(fontsize=7,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.8)
+            sty(ax,f"P&L Distribution  ·  {strategy.replace('_',' ').title()}","P&L ($)","Freq")
+            fig_h.tight_layout(pad=1.2); st.pyplot(fig_h,use_container_width=True); plt.close(fig_h)
+        with cs2:
+            fig_sc,ax=plt.subplots(figsize=(4.8,3.4),facecolor=BG); ax.set_facecolor(PANEL)
+            sp=df['final_spot'].values; pn=df['pnl'].values
+            ax.scatter(sp[pn>=0],pn[pn>=0],alpha=0.45,s=8,color=GREEN, edgecolors="none",zorder=3)
+            ax.scatter(sp[pn<0], pn[pn<0], alpha=0.45,s=8,color=PURPLE,edgecolors="none",zorder=3)
+            ys,yS=pn.min(),pn.max(); yps=(yS-ys)*0.12
+            ax.axhline(0,color=GRAY,lw=0.5,alpha=0.55,zorder=2)
+            vline(ax,S,f"S0  ${S:.0f}",YELLOW,   ys-yps,yS)
+            vline(ax,K,f"K  ${K:.0f}", "#9ca3af",ys-yps,yS)
+            ax.set_ylim(ys-yps*1.8,yS+yps)
+            ax.annotate("BE  $0.00",xy=(sp.min()+(sp.max()-sp.min())*0.03,0),fontsize=6.2,color=GRAY,
+                        fontfamily="monospace",ha="left",va="bottom",
+                        bbox=dict(boxstyle="round,pad=0.2",facecolor="#000000",edgecolor=GRAY,linewidth=0.4,alpha=0.85))
+            ax.legend(handles=[
+                plt.Line2D([0],[0],marker='o',color='w',markerfacecolor=GREEN, markersize=5,label='Gain',linewidth=0),
+                plt.Line2D([0],[0],marker='o',color='w',markerfacecolor=PURPLE,markersize=5,label='Loss',linewidth=0),
+                plt.Line2D([0],[0],color=YELLOW,lw=0.8,linestyle='--',label='S0'),
+            ],fontsize=7,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.8)
+            sty(ax,"P&L vs Final Spot","Final spot ($)","P&L ($)")
+            fig_sc.tight_layout(pad=1.2); st.pyplot(fig_sc,use_container_width=True); plt.close(fig_sc)
+
+        st.markdown("---"); st.markdown("### Percentiles")
+        pcts=[5,25,50,75,95]
+        st.dataframe(pd.DataFrame({
+            "Percentile": [f"{p}%" for p in pcts],
+            "P&L ($)":    [f"${df['pnl'].quantile(p/100):.2f}" for p in pcts],
+            "Return (%)": [f"{df['return_pct'].quantile(p/100):.2f}%" for p in pcts],
+        }),use_container_width=True,hide_index=True)
