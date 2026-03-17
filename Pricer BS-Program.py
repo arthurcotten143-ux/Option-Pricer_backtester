@@ -1,7 +1,7 @@
 """
 Options Pricer — Streamlit
 Compatible GitHub Codespaces / navigateur
-Lancer avec : streamlit run streamlit_bs_pricer.py
+Lancer avec : streamlit run streamlit_bs_pricer_fixed.py
 """
 
 import numpy as np
@@ -28,26 +28,51 @@ st.markdown("""
     .block-container { padding-top: 1rem; }
     [data-testid="stSidebar"] { background-color: #0f1219; }
     h1, h2, h3 { color: #4ade80; font-family: monospace; font-weight: normal; }
-    p, span, div { color: #e5e7eb; }
-    .metric-label { color: #4ade80 !important; font-size: 0.8rem !important; font-weight: normal !important; }
-    .stMetric { background-color: #1a1f2e; border-radius: 8px; padding: 8px; border: 1px solid #22c55e; }
+    p, span, div, label { color: #e5e7eb !important; }
+    
+    /* Fix pour les métriques - texte blanc sur fond sombre */
     div[data-testid="metric-container"] {
         background-color: #1a1f2e;
         border: 1px solid #22c55e;
         border-radius: 8px;
-        padding: 10px;
+        padding: 12px;
     }
     div[data-testid="metric-container"] label {
         color: #4ade80 !important;
         font-weight: normal !important;
+        font-size: 0.9rem !important;
     }
     div[data-testid="stMetricValue"] {
         color: #ffffff !important;
         font-weight: bold !important;
-        font-size: 1.1rem !important;
+        font-size: 1.2rem !important;
     }
-    .stMarkdown { color: #e5e7eb; }
-    .stAlert { background-color: #1a1f2e; border: 1px solid #22c55e; }
+    div[data-testid="stMetricDelta"] {
+        color: #10b981 !important;
+    }
+    
+    /* Fix pour les alertes */
+    .stAlert {
+        background-color: #1a1f2e !important;
+        border: 1px solid #22c55e !important;
+        color: #e5e7eb !important;
+    }
+    
+    /* Fix pour les dataframes */
+    .dataframe {
+        font-size: 0.85rem !important;
+        font-family: monospace !important;
+        color: #e5e7eb !important;
+        background-color: #1a1f2e !important;
+    }
+    .dataframe th {
+        background-color: #0f1219 !important;
+        color: #4ade80 !important;
+    }
+    .dataframe td {
+        color: #ffffff !important;
+    }
+    
     .author-link { 
         color: #9ca3af; 
         font-size: 0.85rem; 
@@ -63,10 +88,6 @@ st.markdown("""
     .author-link a:hover {
         color: #22c55e;
         text-decoration: underline;
-    }
-    .dataframe {
-        font-size: 0.85rem !important;
-        font-family: monospace !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -166,9 +187,9 @@ def implied_volatility(market_price, S, K, T, r, q=0.0, opt="call"):
 
 # ─── MONTE CARLO OPTIMISÉ ─────────────────────────────────────────────────────
 
-@st.cache_data(ttl=300)  # Cache pendant 5 minutes
+@st.cache_data(ttl=300)
 def monte_carlo_pricer_cached(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed):
-    """Version cachée du pricer Monte Carlo pour éviter recalculs"""
+    """Version cachée du pricer Monte Carlo"""
     return monte_carlo_pricer(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed)
 
 def monte_carlo_pricer(S, K, T, r, sigma, q=0.0, opt="call", n_sims=100000, n_steps=252, antithetic=True, seed=42):
@@ -176,10 +197,7 @@ def monte_carlo_pricer(S, K, T, r, sigma, q=0.0, opt="call", n_sims=100000, n_st
     np.random.seed(seed)
     dt = T / n_steps
     
-    # Limiter les paths stockés pour économiser la mémoire
     max_paths_to_store = min(1000, n_sims)
-    
-    # Calcul par batch si trop de simulations (évite saturation mémoire)
     batch_size = min(n_sims, 100000)
     n_batches = int(np.ceil(n_sims / batch_size))
     
@@ -201,7 +219,6 @@ def monte_carlo_pricer(S, K, T, r, sigma, q=0.0, opt="call", n_sims=100000, n_st
         log_price_paths = np.log(S) + np.cumsum(log_returns, axis=1)
         S_T = np.exp(log_price_paths[:, -1])
         
-        # Conserver quelques paths du premier batch seulement
         if batch == 0:
             sample_paths = S_T[:max_paths_to_store].copy()
         
@@ -211,22 +228,18 @@ def monte_carlo_pricer(S, K, T, r, sigma, q=0.0, opt="call", n_sims=100000, n_st
             payoffs = np.maximum(K - S_T, 0)
         
         all_payoffs.append(payoffs)
-        
-        # Libérer mémoire
         del Z, log_returns, log_price_paths, S_T, payoffs
     
     all_payoffs = np.concatenate(all_payoffs)
     price = np.exp(-r*T) * np.mean(all_payoffs)
     std_error = np.exp(-r*T) * np.std(all_payoffs) / np.sqrt(len(all_payoffs))
     
-    # Greeks simplifiés (pas de recalcul complet pour économiser du temps)
-    # On utilise des approximations analytiques quand possible
     g_bs = greeks(S, K, T, r, sigma, q, opt)
     
     return {
         "price": price,
         "std_error": std_error,
-        "delta": g_bs["delta"],  # Utilise BS pour les Greeks (plus rapide)
+        "delta": g_bs["delta"],
         "gamma": g_bs["gamma"],
         "vega": g_bs["vega"],
         "theta": g_bs["theta"],
@@ -246,7 +259,6 @@ def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, 
     np.random.seed(42)
     dt = 1/252
     
-    # Simulation vectorisée du sous-jacent pour toutes les trajectoires à la fois
     Z = np.random.standard_normal((n_sims, n_days))
     drift = (r - q - 0.5*sigma**2) * dt
     diffusion = sigma * np.sqrt(dt)
@@ -255,12 +267,10 @@ def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, 
     log_price_paths = np.log(S0) + np.cumsum(log_returns, axis=1)
     S_final = np.exp(log_price_paths[:, -1])
     
-    # Calcul P&L selon stratégie
     results = []
     
     for i, S in enumerate(S_final):
         capital = initial_capital
-        time_to_expiry = max(T - n_days/252, 0)
         
         if strategy == "long_call":
             entry_price = bs(S0, K, T, r, sigma, q, "call")
@@ -309,11 +319,11 @@ def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, 
 # ─── HELPERS PLOT ─────────────────────────────────────────────────────────────
 
 def sty(ax, title, xl, yl):
-    ax.set_title(title, color=TITLE, fontsize=9, pad=8, fontweight="normal")
-    ax.set_xlabel(xl, color=TITLE, fontsize=8, fontweight="normal")
-    ax.set_ylabel(yl, color=TITLE, fontsize=8, fontweight="normal")
+    ax.set_title(title, color=TITLE, fontsize=10, pad=8, fontweight="normal")
+    ax.set_xlabel(xl, color=TITLE, fontsize=9, fontweight="normal")
+    ax.set_ylabel(yl, color=TITLE, fontsize=9, fontweight="normal")
     ax.grid(True, alpha=0.4, linewidth=0.7)
-    ax.tick_params(labelsize=7.5, colors=TEXT, width=1.2)
+    ax.tick_params(labelsize=8, colors=TEXT, width=1.2)
     for spine in ax.spines.values():
         spine.set_linewidth(1.5)
 
@@ -364,7 +374,7 @@ with st.sidebar:
         st.markdown("### Paramètres Monte Carlo")
         n_sims = st.selectbox(
             "Nombre de simulations",
-            [10000, 50000, 100000, 250000],  # Limité à 250k pour éviter timeout
+            [10000, 50000, 100000, 250000],
             index=2,
             help="⚠️ >250k peut causer des timeouts"
         )
@@ -475,13 +485,12 @@ if mode == "Pricing":
         if not alerts:
             st.success("✓ Paramètres OK")
 
-        # Graphiques simplifiés pour performance
-        S_range = np.linspace(S*0.7, S*1.3, 200)  # Réduit de 350 à 200 points
+        S_range = np.linspace(S*0.7, S*1.3, 200)
         
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            fig1, ax = plt.subplots(figsize=(7, 3.5), facecolor=BG)
+            fig1, ax = plt.subplots(figsize=(8, 4), facecolor=BG)
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
@@ -494,14 +503,14 @@ if mode == "Pricing":
             ax.fill_between(S_range, pnl, 0, where=pnl>=0, alpha=0.3, color=GREEN)
             ax.fill_between(S_range, pnl, 0, where=pnl<0,  alpha=0.3, color=RED)
             ax.plot(S_range, pnl, color=ACCENT, lw=2.5, label="P&L expiration")
-            ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+            ax.legend(fontsize=8, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, f"P&L · {opt.upper()}", "Spot ($)", "P&L ($)")
             st.pyplot(fig1, use_container_width=True)
             plt.close(fig1)
 
         with col2:
             if pricing_method == "Monte Carlo" and mc_paths is not None:
-                fig2, ax = plt.subplots(figsize=(3.5, 3.5), facecolor=BG)
+                fig2, ax = plt.subplots(figsize=(4, 4), facecolor=BG)
                 ax.set_facecolor(PANEL)
                 for sp in ax.spines.values(): 
                     sp.set_edgecolor(BORDER)
@@ -541,15 +550,15 @@ elif mode == "Implied Volatility":
                 theo_price = bs(S, strike, T, r, iv, q, opt)
                 ivs.append(implied_volatility(theo_price, S, strike, T, r, q, opt))
             
-            fig_smile, ax = plt.subplots(figsize=(8, 4), facecolor=BG)
+            fig_smile, ax = plt.subplots(figsize=(10, 5), facecolor=BG)
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
                 sp.set_linewidth(1.5)
-            ax.plot(strikes/S, np.array(ivs)*100, color=PURPLE, lw=2.5, marker='o', markersize=4)
+            ax.plot(strikes/S, np.array(ivs)*100, color=PURPLE, lw=3, marker='o', markersize=6)
             ax.axvline(1.0, color=GRAY, lw=1.2, linestyle=":", alpha=0.7, label="ATM")
             ax.axhline(iv*100, color=ACCENT, lw=1.2, linestyle="--", alpha=0.7, label=f"IV: {iv*100:.2f}%")
-            ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+            ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, "Volatility Smile", "Moneyness (K/S)", "IV (%)")
             st.pyplot(fig_smile, use_container_width=True)
             plt.close(fig_smile)
@@ -575,7 +584,7 @@ elif mode == "Backtesting":
         max_loss = results_df['pnl'].min()
         sharpe = mean_pnl / std_pnl if std_pnl > 0 else 0
         
-        st.markdown("### Statistiques")
+        st.markdown("### Statistiques de performance")
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         c1.metric("P&L Moyen", f"${mean_pnl:.2f}", delta=f"{mean_pnl/initial_capital*100:.1f}%")
         c2.metric("P&L Médian", f"${median_pnl:.2f}")
@@ -589,34 +598,35 @@ elif mode == "Backtesting":
         col_hist, col_scatter = st.columns(2)
         
         with col_hist:
-            fig_hist, ax = plt.subplots(figsize=(6, 4), facecolor=BG)
+            fig_hist, ax = plt.subplots(figsize=(7, 5), facecolor=BG)
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
                 sp.set_linewidth(1.5)
-            ax.hist(results_df['pnl'], bins=40, color=CYAN, alpha=0.7)
-            ax.axvline(mean_pnl, color=ACCENT, lw=2, linestyle="--", label=f"Moyenne")
-            ax.axvline(0, color=GRAY, lw=1.5, linestyle="-", label="BE")
-            ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-            sty(ax, f"Distribution P&L", "P&L ($)", "Fréquence")
+            ax.hist(results_df['pnl'], bins=50, color=CYAN, alpha=0.7, edgecolor=CYAN, linewidth=0.5)
+            ax.axvline(mean_pnl, color=ACCENT, lw=2.5, linestyle="--", label=f"Moyenne: ${mean_pnl:.0f}")
+            ax.axvline(0, color=GRAY, lw=2, linestyle="-", alpha=0.8, label="Break-even")
+            ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+            sty(ax, f"Distribution P&L · {strategy.replace('_', ' ').title()}", "P&L ($)", "Fréquence")
             st.pyplot(fig_hist, use_container_width=True)
             plt.close(fig_hist)
         
         with col_scatter:
-            fig_spot, ax = plt.subplots(figsize=(6, 4), facecolor=BG)
+            fig_spot, ax = plt.subplots(figsize=(7, 5), facecolor=BG)
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
                 sp.set_linewidth(1.5)
-            ax.scatter(results_df['final_spot'], results_df['pnl'], alpha=0.5, s=15, color=PURPLE)
-            ax.axhline(0, color=GRAY, lw=1.5, linestyle="-")
-            ax.axvline(S, color=YELLOW, lw=1.2, linestyle="--")
+            ax.scatter(results_df['final_spot'], results_df['pnl'], alpha=0.6, s=25, color=PURPLE, edgecolors='white', linewidths=0.3)
+            ax.axhline(0, color=GRAY, lw=2, linestyle="-", alpha=0.8, label="Break-even")
+            ax.axvline(S, color=YELLOW, lw=2, linestyle="--", alpha=0.9, label=f"Spot initial: ${S:.0f}")
+            ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, "P&L vs Spot Final", "Spot final ($)", "P&L ($)")
             st.pyplot(fig_spot, use_container_width=True)
             plt.close(fig_spot)
         
         st.markdown("---")
-        st.markdown("### Percentiles")
+        st.markdown("### Distribution des résultats")
         percentiles = [5, 25, 50, 75, 95]
         pct_data = {
             "Percentile": [f"{p}%" for p in percentiles],
