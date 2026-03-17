@@ -22,58 +22,60 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    .main { background-color: #f5f5f5; }
+    .main { background-color: #0a0e17; }
     .block-container { padding-top: 1rem; }
-    [data-testid="stSidebar"] { background-color: #ffffff; }
-    h1, h2, h3 { color: #1b5e20; font-family: monospace; font-weight: bold; }
-    p, span, div { color: #000000; }
-    .metric-label { color: #1b5e20 !important; font-size: 0.75rem !important; font-weight: bold !important; }
-    .stMetric { background-color: #ffffff; border-radius: 8px; padding: 8px; border: 1px solid #c8e6c9; }
+    [data-testid="stSidebar"] { background-color: #0f1219; }
+    h1, h2, h3 { color: #4ade80; font-family: monospace; font-weight: normal; }
+    p, span, div { color: #e5e7eb; }
+    .metric-label { color: #4ade80 !important; font-size: 0.8rem !important; font-weight: normal !important; }
+    .stMetric { background-color: #1a1f2e; border-radius: 8px; padding: 8px; border: 1px solid #22c55e; }
     div[data-testid="metric-container"] {
-        background-color: #ffffff;
-        border: 1px solid #c8e6c9;
+        background-color: #1a1f2e;
+        border: 1px solid #22c55e;
         border-radius: 8px;
         padding: 10px;
     }
     div[data-testid="metric-container"] label {
-        color: #1b5e20 !important;
-        font-weight: bold !important;
+        color: #4ade80 !important;
+        font-weight: normal !important;
     }
     div[data-testid="stMetricValue"] {
-        color: #000000 !important;
+        color: #ffffff !important;
         font-weight: bold !important;
+        font-size: 1.1rem !important;
     }
-    .stMarkdown { color: #000000; }
+    .stMarkdown { color: #e5e7eb; }
+    .stAlert { background-color: #1a1f2e; border: 1px solid #22c55e; }
 </style>
 """, unsafe_allow_html=True)
 
 # ─── STYLE MATPLOTLIB ─────────────────────────────────────────────────────────
 plt.rcParams.update({
-    "figure.facecolor": "#ffffff",
-    "axes.facecolor":   "#f5f5f5",
-    "axes.edgecolor":   "#1b5e20",
-    "axes.labelcolor":  "#1b5e20",
-    "text.color":       "#000000",
-    "xtick.color":      "#000000",
-    "ytick.color":      "#000000",
-    "grid.color":       "#c8e6c9",
-    "grid.linewidth":   0.5,
+    "figure.facecolor": "#0f1219",
+    "axes.facecolor":   "#1a1f2e",
+    "axes.edgecolor":   "#22c55e",
+    "axes.labelcolor":  "#4ade80",
+    "text.color":       "#e5e7eb",
+    "xtick.color":      "#e5e7eb",
+    "ytick.color":      "#e5e7eb",
+    "grid.color":       "#374151",
+    "grid.linewidth":   0.6,
     "font.family":      "monospace",
 })
 
-BG     = "#ffffff"
-PANEL  = "#f5f5f5"
-BORDER = "#1b5e20"
-ACCENT = "#2e7d32"
-GREEN  = "#2e7d32"
-RED    = "#c62828"
-YELLOW = "#f57c00"
-PURPLE = "#6a1b9a"
-CYAN   = "#00838f"
-ORANGE = "#ef6c00"
-GRAY   = "#424242"
-TEXT   = "#000000"
-TITLE  = "#1b5e20"
+BG     = "#0f1219"
+PANEL  = "#1a1f2e"
+BORDER = "#22c55e"
+ACCENT = "#4ade80"
+GREEN  = "#10b981"
+RED    = "#ef4444"
+YELLOW = "#f59e0b"
+PURPLE = "#a78bfa"
+CYAN   = "#06b6d4"
+ORANGE = "#fb923c"
+GRAY   = "#9ca3af"
+TEXT   = "#e5e7eb"
+TITLE  = "#4ade80"
 
 # ─── BLACK-SCHOLES ────────────────────────────────────────────────────────────
 
@@ -120,11 +122,13 @@ def prob_itm(S, K, T, r, sigma, q=0.0, opt="call"):
 # ─── HELPERS PLOT ─────────────────────────────────────────────────────────────
 
 def sty(ax, title, xl, yl):
-    ax.set_title(title, color=TITLE, fontsize=8.5, pad=6, fontweight="bold")
-    ax.set_xlabel(xl, color=TITLE, fontsize=7.5, fontweight="bold")
-    ax.set_ylabel(yl, color=TITLE, fontsize=7.5, fontweight="bold")
-    ax.grid(True, alpha=0.4)
-    ax.tick_params(labelsize=7, colors=TEXT)
+    ax.set_title(title, color=TITLE, fontsize=9, pad=8, fontweight="normal")
+    ax.set_xlabel(xl, color=TITLE, fontsize=8, fontweight="normal")
+    ax.set_ylabel(yl, color=TITLE, fontsize=8, fontweight="normal")
+    ax.grid(True, alpha=0.4, linewidth=0.7)
+    ax.tick_params(labelsize=7.5, colors=TEXT, width=1.2)
+    for spine in ax.spines.values():
+        spine.set_linewidth(1.5)
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 
@@ -207,20 +211,22 @@ if run or True:  # calcul automatique au chargement
     with col1:
         fig1, ax = plt.subplots(figsize=(7, 3.5), facecolor=BG)
         ax.set_facecolor(PANEL)
-        for sp in ax.spines.values(): sp.set_edgecolor(BORDER)
+        for sp in ax.spines.values(): 
+            sp.set_edgecolor(BORDER)
+            sp.set_linewidth(1.5)
         pnl = (np.maximum(S_range-K, 0) - cost if opt=="call"
                else np.maximum(K-S_range, 0) - cost)
-        ax.axhline(0, color=BORDER, lw=1.2)
-        ax.axvline(S,  color=GRAY,   lw=1,   linestyle=":",  alpha=0.7)
-        ax.axvline(K,  color=YELLOW, lw=1.2, linestyle="--", alpha=0.9, label=f"Strike ${K:.0f}")
-        ax.axvline(be, color=GREEN,  lw=1.5, linestyle="--", alpha=0.9, label=f"BE ${be:.2f}")
-        ax.fill_between(S_range, pnl, 0, where=pnl>=0, alpha=0.25, color=GREEN)
-        ax.fill_between(S_range, pnl, 0, where=pnl<0,  alpha=0.25, color=RED)
-        ax.plot(S_range, pnl, color=ACCENT, lw=2.2, label="P&L expiration")
+        ax.axhline(0, color=GRAY, lw=1.5, alpha=0.7)
+        ax.axvline(S,  color=GRAY,   lw=1.2,   linestyle=":",  alpha=0.8)
+        ax.axvline(K,  color=YELLOW, lw=2, linestyle="--", alpha=0.95, label=f"Strike ${K:.0f}")
+        ax.axvline(be, color=GREEN,  lw=2.2, linestyle="--", alpha=0.95, label=f"BE ${be:.2f}")
+        ax.fill_between(S_range, pnl, 0, where=pnl>=0, alpha=0.3, color=GREEN)
+        ax.fill_between(S_range, pnl, 0, where=pnl<0,  alpha=0.3, color=RED)
+        ax.plot(S_range, pnl, color=ACCENT, lw=2.5, label="P&L expiration")
         ax.plot(S_range,
                 [bs(s,K,T,r,sigma,q,opt)-cost for s in S_range],
-                color=PURPLE, lw=1.4, linestyle="--", alpha=0.8, label="Valeur actuelle")
-        ax.legend(fontsize=7, facecolor=BG, edgecolor=BORDER, labelcolor=TEXT)
+                color=PURPLE, lw=2, linestyle="--", alpha=0.9, label="Valeur actuelle")
+        ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT, framealpha=0.95)
         sty(ax, f"P&L à expiration · {opt.upper()} · Prime ${cost:.4f}", "Spot ($)", "P&L ($)")
         st.pyplot(fig1, use_container_width=True)
         plt.close(fig1)
@@ -228,14 +234,16 @@ if run or True:  # calcul automatique au chargement
     with col2:
         fig2, ax = plt.subplots(figsize=(3.5, 3.5), facecolor=BG)
         ax.set_facecolor(PANEL)
-        for sp in ax.spines.values(): sp.set_edgecolor(BORDER)
+        for sp in ax.spines.values(): 
+            sp.set_edgecolor(BORDER)
+            sp.set_linewidth(1.5)
         vol_r  = np.linspace(0.01, sigma*3.5, 250)
         pr_vol = [bs(S,K,T,r,v,q,opt) for v in vol_r]
-        ax.plot(vol_r*100, pr_vol, color=YELLOW, lw=2)
-        ax.axvline(sigma*100, color=ACCENT, lw=1.2, linestyle="--", alpha=0.8)
-        ax.axhline(price,     color=ACCENT, lw=0.8, linestyle="--", alpha=0.5)
-        ax.scatter([sigma*100], [price], color=ACCENT, s=50, zorder=5)
-        ax.fill_between(vol_r*100, pr_vol, alpha=0.15, color=YELLOW)
+        ax.plot(vol_r*100, pr_vol, color=YELLOW, lw=2.5)
+        ax.axvline(sigma*100, color=ACCENT, lw=2, linestyle="--", alpha=0.9)
+        ax.axhline(price,     color=ACCENT, lw=1.2, linestyle="--", alpha=0.7)
+        ax.scatter([sigma*100], [price], color=ACCENT, s=80, zorder=5, edgecolors='white', linewidths=1.5)
+        ax.fill_between(vol_r*100, pr_vol, alpha=0.2, color=YELLOW)
         sty(ax, f"Prix vs Vol [${price:.4f}]", "Vol (%)", "Prix ($)")
         st.pyplot(fig2, use_container_width=True)
         plt.close(fig2)
@@ -243,13 +251,15 @@ if run or True:  # calcul automatique au chargement
     with col3:
         fig3, ax = plt.subplots(figsize=(3.5, 3.5), facecolor=BG)
         ax.set_facecolor(PANEL)
-        for sp in ax.spines.values(): sp.set_edgecolor(BORDER)
+        for sp in ax.spines.values(): 
+            sp.set_edgecolor(BORDER)
+            sp.set_linewidth(1.5)
         T_range = np.linspace(max(T, 1/365), max(T*5, 90/365), 200)
         pr_time = [bs(S,K,t,r,sigma,q,opt) for t in T_range]
-        ax.plot(T_range*365, pr_time, color=RED, lw=2)
-        ax.axvline(T*365, color=ACCENT, lw=1.2, linestyle="--", alpha=0.8)
-        ax.scatter([T*365], [price], color=ACCENT, s=50, zorder=5)
-        ax.fill_between(T_range*365, pr_time, alpha=0.15, color=RED)
+        ax.plot(T_range*365, pr_time, color=RED, lw=2.5)
+        ax.axvline(T*365, color=ACCENT, lw=2, linestyle="--", alpha=0.9)
+        ax.scatter([T*365], [price], color=ACCENT, s=80, zorder=5, edgecolors='white', linewidths=1.5)
+        ax.fill_between(T_range*365, pr_time, alpha=0.2, color=RED)
         sty(ax, f"Prix vs Temps [T={T_day}j]", "Jours restants", "Prix ($)")
         st.pyplot(fig3, use_container_width=True)
         plt.close(fig3)
@@ -267,12 +277,14 @@ if run or True:  # calcul automatique au chargement
         with col:
             fig_g, ax = plt.subplots(figsize=(3.5, 3), facecolor=BG)
             ax.set_facecolor(PANEL)
-            for sp in ax.spines.values(): sp.set_edgecolor(BORDER)
+            for sp in ax.spines.values(): 
+                sp.set_edgecolor(BORDER)
+                sp.set_linewidth(1.5)
             vals = [greeks(s,K,T,r,sigma,q,opt)[gname] for s in S_range]
-            ax.plot(S_range, vals, color=gcol, lw=2)
-            ax.axvline(S, color=GRAY, lw=1, linestyle=":", alpha=0.6)
-            ax.axhline(g[gname], color=gcol, lw=0.8, linestyle="--", alpha=0.5)
-            ax.fill_between(S_range, vals, alpha=0.15, color=gcol)
+            ax.plot(S_range, vals, color=gcol, lw=2.5)
+            ax.axvline(S, color=GRAY, lw=1.2, linestyle=":", alpha=0.8)
+            ax.axhline(g[gname], color=gcol, lw=1.2, linestyle="--", alpha=0.7)
+            ax.fill_between(S_range, vals, alpha=0.2, color=gcol)
             sty(ax, f"{gtitle} {gval}", "Spot ($)", gname.capitalize())
             st.pyplot(fig_g, use_container_width=True)
             plt.close(fig_g)
