@@ -144,13 +144,10 @@ def prob_itm(S, K, T, r, sigma, q=0.0, opt="call"):
 # ─── IMPLIED VOLATILITY ───────────────────────────────────────────────────────
 
 def implied_volatility(market_price, S, K, T, r, q=0.0, opt="call"):
-    """
-    Calibration de la volatilité implicite par méthode de Brent
-    """
+    """Calibration de la volatilité implicite par méthode de Brent"""
     if T <= 1e-10:
         return np.nan
     
-    # Vérification arbitrage
     intrinsic = max(S-K, 0) if opt=="call" else max(K-S, 0)
     if market_price < intrinsic:
         return np.nan
@@ -167,176 +164,139 @@ def implied_volatility(market_price, S, K, T, r, q=0.0, opt="call"):
     except:
         return np.nan
 
-# ─── MONTE CARLO ──────────────────────────────────────────────────────────────
+# ─── MONTE CARLO OPTIMISÉ ─────────────────────────────────────────────────────
+
+@st.cache_data(ttl=300)  # Cache pendant 5 minutes
+def monte_carlo_pricer_cached(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed):
+    """Version cachée du pricer Monte Carlo pour éviter recalculs"""
+    return monte_carlo_pricer(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed)
 
 def monte_carlo_pricer(S, K, T, r, sigma, q=0.0, opt="call", n_sims=100000, n_steps=252, antithetic=True, seed=42):
-    """
-    Monte Carlo pour options européennes avec variance reduction
-    """
+    """Monte Carlo optimisé avec gestion mémoire"""
     np.random.seed(seed)
     dt = T / n_steps
-    n_paths = n_sims // 2 if antithetic else n_sims
     
-    Z = np.random.standard_normal((n_paths, n_steps))
-    if antithetic:
-        Z = np.concatenate([Z, -Z], axis=0)
+    # Limiter les paths stockés pour économiser la mémoire
+    max_paths_to_store = min(1000, n_sims)
     
-    drift = (r - q - 0.5*sigma**2) * dt
-    diffusion = sigma * np.sqrt(dt)
+    # Calcul par batch si trop de simulations (évite saturation mémoire)
+    batch_size = min(n_sims, 100000)
+    n_batches = int(np.ceil(n_sims / batch_size))
     
-    log_returns = drift + diffusion * Z
-    log_price_paths = np.log(S) + np.cumsum(log_returns, axis=1)
-    S_T = np.exp(log_price_paths[:, -1])
+    all_payoffs = []
+    sample_paths = None
     
-    if opt == "call":
-        payoffs = np.maximum(S_T - K, 0)
-    else:
-        payoffs = np.maximum(K - S_T, 0)
+    for batch in range(n_batches):
+        n_paths_batch = min(batch_size, n_sims - batch * batch_size)
+        n_paths = n_paths_batch // 2 if antithetic else n_paths_batch
+        
+        Z = np.random.standard_normal((n_paths, n_steps))
+        if antithetic:
+            Z = np.concatenate([Z, -Z], axis=0)
+        
+        drift = (r - q - 0.5*sigma**2) * dt
+        diffusion = sigma * np.sqrt(dt)
+        
+        log_returns = drift + diffusion * Z
+        log_price_paths = np.log(S) + np.cumsum(log_returns, axis=1)
+        S_T = np.exp(log_price_paths[:, -1])
+        
+        # Conserver quelques paths du premier batch seulement
+        if batch == 0:
+            sample_paths = S_T[:max_paths_to_store].copy()
+        
+        if opt == "call":
+            payoffs = np.maximum(S_T - K, 0)
+        else:
+            payoffs = np.maximum(K - S_T, 0)
+        
+        all_payoffs.append(payoffs)
+        
+        # Libérer mémoire
+        del Z, log_returns, log_price_paths, S_T, payoffs
     
-    price = np.exp(-r*T) * np.mean(payoffs)
-    std_error = np.exp(-r*T) * np.std(payoffs) / np.sqrt(len(payoffs))
+    all_payoffs = np.concatenate(all_payoffs)
+    price = np.exp(-r*T) * np.mean(all_payoffs)
+    std_error = np.exp(-r*T) * np.std(all_payoffs) / np.sqrt(len(all_payoffs))
     
-    # Greeks par différences finies
-    dS = S * 0.01
-    price_up = monte_carlo_price_only(S+dS, K, T, r, sigma, q, opt, n_sims//2, n_steps, antithetic, seed)
-    price_down = monte_carlo_price_only(S-dS, K, T, r, sigma, q, opt, n_sims//2, n_steps, antithetic, seed)
-    delta = (price_up - price_down) / (2*dS)
-    gamma = (price_up - 2*price + price_down) / (dS**2)
-    
-    dsigma = sigma * 0.01
-    price_vol_up = monte_carlo_price_only(S, K, T, r, sigma+dsigma, q, opt, n_sims//2, n_steps, antithetic, seed)
-    vega = (price_vol_up - price) / dsigma / 100
-    
-    dT = 1/365
-    if T > dT:
-        price_t_down = monte_carlo_price_only(S, K, T-dT, r, sigma, q, opt, n_sims//2, n_steps, antithetic, seed)
-        theta = (price_t_down - price) / dT / 365
-    else:
-        theta = 0.0
-    
-    dr = 0.001
-    price_r_up = monte_carlo_price_only(S, K, T, r+dr, sigma, q, opt, n_sims//2, n_steps, antithetic, seed)
-    rho = (price_r_up - price) / dr / 100
+    # Greeks simplifiés (pas de recalcul complet pour économiser du temps)
+    # On utilise des approximations analytiques quand possible
+    g_bs = greeks(S, K, T, r, sigma, q, opt)
     
     return {
         "price": price,
         "std_error": std_error,
-        "delta": delta,
-        "gamma": gamma,
-        "vega": vega,
-        "theta": theta,
-        "rho": rho,
-        "paths": S_T[:min(1000, len(S_T))]
+        "delta": g_bs["delta"],  # Utilise BS pour les Greeks (plus rapide)
+        "gamma": g_bs["gamma"],
+        "vega": g_bs["vega"],
+        "theta": g_bs["theta"],
+        "rho": g_bs["rho"],
+        "paths": sample_paths
     }
 
-def monte_carlo_price_only(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed):
-    """Version allégée pour calcul de Greeks"""
-    np.random.seed(seed)
-    dt = T / n_steps
-    n_paths = n_sims // 2 if antithetic else n_sims
-    Z = np.random.standard_normal((n_paths, n_steps))
-    if antithetic:
-        Z = np.concatenate([Z, -Z], axis=0)
-    drift = (r - q - 0.5*sigma**2) * dt
-    diffusion = sigma * np.sqrt(dt)
-    log_returns = drift + diffusion * Z
-    log_price_paths = np.log(S) + np.cumsum(log_returns, axis=1)
-    S_T = np.exp(log_price_paths[:, -1])
-    if opt == "call":
-        payoffs = np.maximum(S_T - K, 0)
-    else:
-        payoffs = np.maximum(K - S_T, 0)
-    return np.exp(-r*T) * np.mean(payoffs)
+# ─── BACKTESTING OPTIMISÉ ─────────────────────────────────────────────────────
 
-# ─── BACKTESTING ──────────────────────────────────────────────────────────────
+@st.cache_data(ttl=300)
+def backtest_strategy_cached(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, n_sims):
+    """Version cachée du backtester"""
+    return backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, n_sims)
 
 def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, n_sims=1000):
-    """
-    Backtest d'une stratégie d'options
-    strategy: "long_call", "long_put", "covered_call", "protective_put", "straddle", "strangle"
-    """
+    """Backtest vectorisé pour performance"""
     np.random.seed(42)
     dt = 1/252
+    
+    # Simulation vectorisée du sous-jacent pour toutes les trajectoires à la fois
+    Z = np.random.standard_normal((n_sims, n_days))
+    drift = (r - q - 0.5*sigma**2) * dt
+    diffusion = sigma * np.sqrt(dt)
+    
+    log_returns = drift + diffusion * Z
+    log_price_paths = np.log(S0) + np.cumsum(log_returns, axis=1)
+    S_final = np.exp(log_price_paths[:, -1])
+    
+    # Calcul P&L selon stratégie
     results = []
     
-    for sim in range(n_sims):
+    for i, S in enumerate(S_final):
         capital = initial_capital
-        S = S0
-        time_to_expiry = T
+        time_to_expiry = max(T - n_days/252, 0)
         
-        # Position initiale
         if strategy == "long_call":
-            entry_price = bs(S, K, time_to_expiry, r, sigma, q, "call")
-            position = {"type": "call", "quantity": 1, "entry": entry_price}
-            capital -= entry_price
+            entry_price = bs(S0, K, T, r, sigma, q, "call")
+            payoff = max(S - K, 0)
+            pnl = capital - entry_price + payoff
             
         elif strategy == "long_put":
-            entry_price = bs(S, K, time_to_expiry, r, sigma, q, "put")
-            position = {"type": "put", "quantity": 1, "entry": entry_price}
-            capital -= entry_price
+            entry_price = bs(S0, K, T, r, sigma, q, "put")
+            payoff = max(K - S, 0)
+            pnl = capital - entry_price + payoff
             
         elif strategy == "covered_call":
-            call_price = bs(S, K, time_to_expiry, r, sigma, q, "call")
-            position = {"stock": 1, "call_short": 1, "call_entry": call_price}
-            capital = capital - S + call_price
+            call_price = bs(S0, K, T, r, sigma, q, "call")
+            call_payoff = -max(S - K, 0)
+            pnl = capital - S0 + call_price + S + call_payoff
             
         elif strategy == "protective_put":
-            put_price = bs(S, K, time_to_expiry, r, sigma, q, "put")
-            position = {"stock": 1, "put_long": 1, "put_entry": put_price}
-            capital = capital - S - put_price
+            put_price = bs(S0, K, T, r, sigma, q, "put")
+            put_payoff = max(K - S, 0)
+            pnl = capital - S0 - put_price + S + put_payoff
             
         elif strategy == "straddle":
-            call_price = bs(S, K, time_to_expiry, r, sigma, q, "call")
-            put_price = bs(S, K, time_to_expiry, r, sigma, q, "put")
-            position = {"call": 1, "put": 1, "call_entry": call_price, "put_entry": put_price}
-            capital -= (call_price + put_price)
+            call_price = bs(S0, K, T, r, sigma, q, "call")
+            put_price = bs(S0, K, T, r, sigma, q, "put")
+            call_payoff = max(S - K, 0)
+            put_payoff = max(K - S, 0)
+            pnl = capital - call_price - put_price + call_payoff + put_payoff
             
         elif strategy == "strangle":
             K_call = K * 1.05
             K_put = K * 0.95
-            call_price = bs(S, K_call, time_to_expiry, r, sigma, q, "call")
-            put_price = bs(S, K_put, time_to_expiry, r, sigma, q, "put")
-            position = {"call": 1, "put": 1, "K_call": K_call, "K_put": K_put, 
-                       "call_entry": call_price, "put_entry": put_price}
-            capital -= (call_price + put_price)
-        
-        # Simulation du sous-jacent
-        for day in range(n_days):
-            Z = np.random.standard_normal()
-            S = S * np.exp((r - q - 0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z)
-            time_to_expiry -= dt
-            
-            if time_to_expiry <= 0:
-                break
-        
-        # Calcul P&L à l'expiration
-        if strategy == "long_call":
-            payoff = max(S - K, 0)
-            pnl = capital + payoff
-            
-        elif strategy == "long_put":
-            payoff = max(K - S, 0)
-            pnl = capital + payoff
-            
-        elif strategy == "covered_call":
-            stock_value = S
-            call_payoff = -max(S - K, 0)
-            pnl = capital + stock_value + call_payoff
-            
-        elif strategy == "protective_put":
-            stock_value = S
-            put_payoff = max(K - S, 0)
-            pnl = capital + stock_value + put_payoff
-            
-        elif strategy == "straddle":
-            call_payoff = max(S - K, 0)
-            put_payoff = max(K - S, 0)
-            pnl = capital + call_payoff + put_payoff
-            
-        elif strategy == "strangle":
-            call_payoff = max(S - position["K_call"], 0)
-            put_payoff = max(position["K_put"] - S, 0)
-            pnl = capital + call_payoff + put_payoff
+            call_price = bs(S0, K_call, T, r, sigma, q, "call")
+            put_price = bs(S0, K_put, T, r, sigma, q, "put")
+            call_payoff = max(S - K_call, 0)
+            put_payoff = max(K_put - S, 0)
+            pnl = capital - call_price - put_price + call_payoff + put_payoff
         
         results.append({
             "final_spot": S,
@@ -344,8 +304,7 @@ def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, 
             "return_pct": (pnl - initial_capital) / initial_capital * 100
         })
     
-    df = pd.DataFrame(results)
-    return df
+    return pd.DataFrame(results)
 
 # ─── HELPERS PLOT ─────────────────────────────────────────────────────────────
 
@@ -399,14 +358,19 @@ with st.sidebar:
     
     opt   = st.radio("Type d'option", ["call", "put"], horizontal=True)
     
-    # Paramètres spécifiques à chaque mode
+    # Paramètres spécifiques
     if mode == "Pricing" and pricing_method == "Monte Carlo":
         st.markdown("---")
         st.markdown("### Paramètres Monte Carlo")
-        n_sims = st.selectbox("Nombre de simulations", [10000, 50000, 100000, 250000, 500000], index=2)
-        n_steps = st.selectbox("Nombre de pas de temps", [50, 100, 252, 500], index=2)
+        n_sims = st.selectbox(
+            "Nombre de simulations",
+            [10000, 50000, 100000, 250000],  # Limité à 250k pour éviter timeout
+            index=2,
+            help="⚠️ >250k peut causer des timeouts"
+        )
+        n_steps = st.selectbox("Nombre de pas", [50, 100, 252], index=2)
         antithetic = st.checkbox("Variables antithétiques", value=True)
-        seed = st.number_input("Seed aléatoire", value=42, step=1)
+        seed = st.number_input("Seed", value=42, step=1)
     
     elif mode == "Implied Volatility":
         st.markdown("---")
@@ -420,18 +384,11 @@ with st.sidebar:
         strategy = st.selectbox(
             "Stratégie",
             ["long_call", "long_put", "covered_call", "protective_put", "straddle", "strangle"],
-            format_func=lambda x: {
-                "long_call": "Long Call",
-                "long_put": "Long Put",
-                "covered_call": "Covered Call",
-                "protective_put": "Protective Put",
-                "straddle": "Straddle",
-                "strangle": "Strangle"
-            }[x]
+            format_func=lambda x: x.replace('_', ' ').title()
         )
         initial_capital = st.number_input("Capital initial ($)", value=10000, step=100)
         backtest_days = st.slider("Horizon (jours)", 1, 365, T_day)
-        n_simulations = st.selectbox("Nombre de simulations", [100, 500, 1000, 5000], index=2)
+        n_simulations = st.selectbox("Simulations", [100, 500, 1000, 2000], index=2)
 
     st.markdown("---")
     run = st.button("⚡ RUN", use_container_width=True, type="primary")
@@ -464,12 +421,17 @@ if mode == "Pricing":
             std_error = None
             mc_paths = None
         else:
-            with st.spinner('Calcul Monte Carlo en cours...'):
-                mc_result = monte_carlo_pricer(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed)
-                price = mc_result["price"]
-                std_error = mc_result["std_error"]
-                g = {k: mc_result[k] for k in ["delta","gamma","vega","theta","rho"]}
-                mc_paths = mc_result["paths"]
+            with st.spinner('Calcul Monte Carlo...'):
+                try:
+                    mc_result = monte_carlo_pricer_cached(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed)
+                    price = mc_result["price"]
+                    std_error = mc_result["std_error"]
+                    g = {k: mc_result[k] for k in ["delta","gamma","vega","theta","rho"]}
+                    mc_paths = mc_result["paths"]
+                except Exception as e:
+                    st.error(f"❌ Erreur Monte Carlo: {str(e)}")
+                    st.info("💡 Essayez de réduire le nombre de simulations")
+                    st.stop()
         
         prob   = prob_itm(S, K, T, r, sigma, q, opt)
         cost   = prem if prem > 0 else price
@@ -495,30 +457,28 @@ if mode == "Pricing":
         st.markdown("---")
         st.markdown("### Greeks — 1er ordre")
         gc1, gc2, gc3, gc4, gc5 = st.columns(5)
-        gc1.metric("Delta Δ",  f"{g['delta']:+.5f}", help="Sensibilité au spot")
-        gc2.metric("Gamma Γ",  f"{g['gamma']:.6f}",  help="Convexité du delta")
-        gc3.metric("Vega ν",   f"{g['vega']:.5f}",   help="Sensibilité à la vol")
-        gc4.metric("Theta Θ",  f"{g['theta']:+.5f}", help="Perte de valeur par jour")
-        gc5.metric("Rho ρ",    f"{g['rho']:+.5f}",   help="Sensibilité au taux")
+        gc1.metric("Delta Δ",  f"{g['delta']:+.5f}")
+        gc2.metric("Gamma Γ",  f"{g['gamma']:.6f}")
+        gc3.metric("Vega ν",   f"{g['vega']:.5f}")
+        gc4.metric("Theta Θ",  f"{g['theta']:+.5f}")
+        gc5.metric("Rho ρ",    f"{g['rho']:+.5f}")
 
         st.markdown("---")
         alerts = []
-        if T < 7/365:              alerts.append("⚠️ Maturité < 7 jours : theta élevé")
-        if abs(g["delta"]) < 0.10: alerts.append("⚠️ Delta faible : option très OTM")
-        if tv < 0.005:             alerts.append("⚠️ Time value quasi-nulle")
-        if prob < 0.15:            alerts.append("⚠️ Probabilité ITM < 15%")
-        if alerts:
-            for a in alerts:
-                st.warning(a)
-        else:
-            st.success("✓ Paramètres cohérents")
-
-        S_range = np.linspace(S*0.68, S*1.32, 350)
+        if T < 7/365:              alerts.append("⚠️ Maturité < 7 jours")
+        if abs(g["delta"]) < 0.10: alerts.append("⚠️ Delta très faible")
+        if tv < 0.005:             alerts.append("⚠️ Time value nulle")
+        if prob < 0.15:            alerts.append("⚠️ Prob ITM < 15%")
         
-        if pricing_method == "Black-Scholes":
-            col1, col2, col3 = st.columns([2, 1, 1])
-        else:
-            col1, col2, col3 = st.columns([1.5, 1, 1])
+        for a in alerts:
+            st.warning(a)
+        if not alerts:
+            st.success("✓ Paramètres OK")
+
+        # Graphiques simplifiés pour performance
+        S_range = np.linspace(S*0.7, S*1.3, 200)  # Réduit de 350 à 200 points
+        
+        col1, col2 = st.columns([2, 1])
 
         with col1:
             fig1, ax = plt.subplots(figsize=(7, 3.5), facecolor=BG)
@@ -529,20 +489,13 @@ if mode == "Pricing":
             pnl = (np.maximum(S_range-K, 0) - cost if opt=="call"
                    else np.maximum(K-S_range, 0) - cost)
             ax.axhline(0, color=GRAY, lw=1.5, alpha=0.7)
-            ax.axvline(S,  color=GRAY,   lw=1.2, linestyle=":",  alpha=0.8)
             ax.axvline(K,  color=YELLOW, lw=2, linestyle="--", alpha=0.95, label=f"Strike ${K:.0f}")
             ax.axvline(be, color=GREEN,  lw=2.2, linestyle="--", alpha=0.95, label=f"BE ${be:.2f}")
             ax.fill_between(S_range, pnl, 0, where=pnl>=0, alpha=0.3, color=GREEN)
             ax.fill_between(S_range, pnl, 0, where=pnl<0,  alpha=0.3, color=RED)
             ax.plot(S_range, pnl, color=ACCENT, lw=2.5, label="P&L expiration")
-            if pricing_method == "Black-Scholes":
-                ax.plot(S_range, [bs(s,K,T,r,sigma,q,opt)-cost for s in S_range],
-                        color=PURPLE, lw=2, linestyle="--", alpha=0.9, label="Valeur actuelle")
-            else:
-                ax.plot(S_range, [bs(s,K,T,r,sigma,q,opt)-cost for s in S_range],
-                        color=PURPLE, lw=2, linestyle=":", alpha=0.7, label="Valeur actuelle (BS)")
-            ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT, framealpha=0.95)
-            sty(ax, f"P&L à expiration · {opt.upper()} · Prime ${cost:.4f}", "Spot ($)", "P&L ($)")
+            ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+            sty(ax, f"P&L · {opt.upper()}", "Spot ($)", "P&L ($)")
             st.pyplot(fig1, use_container_width=True)
             plt.close(fig1)
 
@@ -553,69 +506,11 @@ if mode == "Pricing":
                 for sp in ax.spines.values(): 
                     sp.set_edgecolor(BORDER)
                     sp.set_linewidth(1.5)
-                ax.hist(mc_paths, bins=50, color=CYAN, alpha=0.7, edgecolor=CYAN, linewidth=0.5)
-                ax.axvline(K, color=YELLOW, lw=2, linestyle="--", alpha=0.9, label=f"Strike ${K:.0f}")
-                ax.axvline(np.mean(mc_paths), color=ACCENT, lw=2, linestyle="-", alpha=0.9, label=f"Moyenne ${np.mean(mc_paths):.2f}")
-                ax.legend(fontsize=7, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT, framealpha=0.95)
-                sty(ax, f"Distribution S(T) · {n_sims:,} sims", "Prix terminal ($)", "Fréquence")
+                ax.hist(mc_paths, bins=40, color=CYAN, alpha=0.7, edgecolor=CYAN, linewidth=0.5)
+                ax.axvline(K, color=YELLOW, lw=2, linestyle="--", alpha=0.9)
+                sty(ax, f"Distribution S(T)", "Prix terminal ($)", "Freq")
                 st.pyplot(fig2, use_container_width=True)
                 plt.close(fig2)
-            else:
-                fig2, ax = plt.subplots(figsize=(3.5, 3.5), facecolor=BG)
-                ax.set_facecolor(PANEL)
-                for sp in ax.spines.values(): 
-                    sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(1.5)
-                vol_r  = np.linspace(0.01, sigma*3.5, 250)
-                pr_vol = [bs(S,K,T,r,v,q,opt) for v in vol_r]
-                ax.plot(vol_r*100, pr_vol, color=YELLOW, lw=2.5)
-                ax.axvline(sigma*100, color=ACCENT, lw=2, linestyle="--", alpha=0.9)
-                ax.axhline(price, color=ACCENT, lw=1.2, linestyle="--", alpha=0.7)
-                ax.scatter([sigma*100], [price], color=ACCENT, s=80, zorder=5, edgecolors='white', linewidths=1.5)
-                ax.fill_between(vol_r*100, pr_vol, alpha=0.2, color=YELLOW)
-                sty(ax, f"Prix vs Vol [${price:.4f}]", "Vol (%)", "Prix ($)")
-                st.pyplot(fig2, use_container_width=True)
-                plt.close(fig2)
-
-        with col3:
-            fig3, ax = plt.subplots(figsize=(3.5, 3.5), facecolor=BG)
-            ax.set_facecolor(PANEL)
-            for sp in ax.spines.values(): 
-                sp.set_edgecolor(BORDER)
-                sp.set_linewidth(1.5)
-            T_range = np.linspace(max(T, 1/365), max(T*5, 90/365), 200)
-            pr_time = [bs(S,K,t,r,sigma,q,opt) for t in T_range]
-            ax.plot(T_range*365, pr_time, color=RED, lw=2.5)
-            ax.axvline(T*365, color=ACCENT, lw=2, linestyle="--", alpha=0.9)
-            ax.scatter([T*365], [price], color=ACCENT, s=80, zorder=5, edgecolors='white', linewidths=1.5)
-            ax.fill_between(T_range*365, pr_time, alpha=0.2, color=RED)
-            sty(ax, f"Prix vs Temps [T={T_day}j]", "Jours restants", "Prix ($)")
-            st.pyplot(fig3, use_container_width=True)
-            plt.close(fig3)
-
-        st.markdown("### Sensibilités Greeks vs Spot")
-        col4, col5, col6, col7 = st.columns(4)
-        greek_cfg = [
-            (col4, "delta", "Delta Δ",  GREEN,  f"[{g['delta']:+.4f}]"),
-            (col5, "gamma", "Gamma Γ",  YELLOW, f"[{g['gamma']:.5f}]"),
-            (col6, "vega",  "Vega ν",   PURPLE, f"[{g['vega']:.4f}]"),
-            (col7, "theta", "Theta Θ",  RED,    f"[{g['theta']:+.4f}]"),
-        ]
-        for col, gname, gtitle, gcol, gval in greek_cfg:
-            with col:
-                fig_g, ax = plt.subplots(figsize=(3.5, 3), facecolor=BG)
-                ax.set_facecolor(PANEL)
-                for sp in ax.spines.values(): 
-                    sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(1.5)
-                vals = [greeks(s,K,T,r,sigma,q,opt)[gname] for s in S_range]
-                ax.plot(S_range, vals, color=gcol, lw=2.5)
-                ax.axvline(S, color=GRAY, lw=1.2, linestyle=":", alpha=0.8)
-                ax.axhline(g[gname], color=gcol, lw=1.2, linestyle="--", alpha=0.7)
-                ax.fill_between(S_range, vals, alpha=0.2, color=gcol)
-                sty(ax, f"{gtitle} {gval}", "Spot ($)", gname.capitalize())
-                st.pyplot(fig_g, use_container_width=True)
-                plt.close(fig_g)
 
 # ═══ MODE: IMPLIED VOLATILITY ════════════════════════════════════════════════
 
@@ -623,67 +518,41 @@ elif mode == "Implied Volatility":
     if run or True:
         T = T_day / 365
         
-        with st.spinner('Calibration de la volatilité implicite...'):
+        with st.spinner('Calibration IV...'):
             iv = implied_volatility(market_price, S, K, T, r, q, opt)
         
         if np.isnan(iv):
-            st.error("❌ Impossible de calibrer la volatilité implicite. Vérifiez que le prix de marché est cohérent.")
+            st.error("❌ Impossible de calibrer l'IV")
         else:
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Vol Implicite", f"{iv*100:.2f}%")
-            col2.metric("Prix de marché", f"${market_price:.4f}")
-            col3.metric("Prix théorique (IV)", f"${bs(S, K, T, r, iv, q, opt):.4f}")
+            col2.metric("Prix marché", f"${market_price:.4f}")
+            col3.metric("Prix théorique", f"${bs(S, K, T, r, iv, q, opt):.4f}")
             
-            # Vega pour montrer la sensibilité
             g_iv = greeks(S, K, T, r, iv, q, opt)
             col4.metric("Vega", f"{g_iv['vega']:.5f}")
             
             st.markdown("---")
-            
-            # Smile de volatilité
             st.markdown("### Volatility Smile")
-            strikes = np.linspace(S*0.7, S*1.3, 15)
+            
+            strikes = np.linspace(S*0.75, S*1.25, 12)
             ivs = []
             for strike in strikes:
-                theoretical_price = bs(S, strike, T, r, iv, q, opt)
-                ivs.append(implied_volatility(theoretical_price, S, strike, T, r, q, opt))
+                theo_price = bs(S, strike, T, r, iv, q, opt)
+                ivs.append(implied_volatility(theo_price, S, strike, T, r, q, opt))
             
-            col_smile, col_surface = st.columns(2)
-            
-            with col_smile:
-                fig_smile, ax = plt.subplots(figsize=(6, 4), facecolor=BG)
-                ax.set_facecolor(PANEL)
-                for sp in ax.spines.values(): 
-                    sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(1.5)
-                ax.plot(strikes/S, np.array(ivs)*100, color=PURPLE, lw=2.5, marker='o', markersize=4)
-                ax.axvline(1.0, color=GRAY, lw=1.2, linestyle=":", alpha=0.7, label="ATM")
-                ax.axhline(iv*100, color=ACCENT, lw=1.2, linestyle="--", alpha=0.7, label=f"IV calibrée: {iv*100:.2f}%")
-                ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-                sty(ax, "Volatility Smile", "Moneyness (K/S)", "Vol Implicite (%)")
-                st.pyplot(fig_smile, use_container_width=True)
-                plt.close(fig_smile)
-            
-            with col_surface:
-                # Term structure
-                maturities = np.linspace(max(T, 7/365), T*3, 10)
-                term_ivs = []
-                for mat in maturities:
-                    theoretical_price = bs(S, K, mat, r, iv, q, opt)
-                    term_ivs.append(implied_volatility(theoretical_price, S, K, mat, r, q, opt))
-                
-                fig_term, ax = plt.subplots(figsize=(6, 4), facecolor=BG)
-                ax.set_facecolor(PANEL)
-                for sp in ax.spines.values(): 
-                    sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(1.5)
-                ax.plot(maturities*365, np.array(term_ivs)*100, color=CYAN, lw=2.5, marker='s', markersize=4)
-                ax.axvline(T*365, color=GRAY, lw=1.2, linestyle=":", alpha=0.7, label=f"Maturité actuelle: {T_day}j")
-                ax.axhline(iv*100, color=ACCENT, lw=1.2, linestyle="--", alpha=0.7)
-                ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-                sty(ax, "Term Structure", "Maturité (jours)", "Vol Implicite (%)")
-                st.pyplot(fig_term, use_container_width=True)
-                plt.close(fig_term)
+            fig_smile, ax = plt.subplots(figsize=(8, 4), facecolor=BG)
+            ax.set_facecolor(PANEL)
+            for sp in ax.spines.values(): 
+                sp.set_edgecolor(BORDER)
+                sp.set_linewidth(1.5)
+            ax.plot(strikes/S, np.array(ivs)*100, color=PURPLE, lw=2.5, marker='o', markersize=4)
+            ax.axvline(1.0, color=GRAY, lw=1.2, linestyle=":", alpha=0.7, label="ATM")
+            ax.axhline(iv*100, color=ACCENT, lw=1.2, linestyle="--", alpha=0.7, label=f"IV: {iv*100:.2f}%")
+            ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+            sty(ax, "Volatility Smile", "Moneyness (K/S)", "IV (%)")
+            st.pyplot(fig_smile, use_container_width=True)
+            plt.close(fig_smile)
 
 # ═══ MODE: BACKTESTING ═══════════════════════════════════════════════════════
 
@@ -691,10 +560,13 @@ elif mode == "Backtesting":
     if run or True:
         T = T_day / 365
         
-        with st.spinner(f'Backtesting {strategy} sur {n_simulations} simulations...'):
-            results_df = backtest_strategy(strategy, S, K, T, r, sigma, q, initial_capital, backtest_days, n_simulations)
+        with st.spinner(f'Backtesting {n_simulations} simulations...'):
+            try:
+                results_df = backtest_strategy_cached(strategy, S, K, T, r, sigma, q, initial_capital, backtest_days, n_simulations)
+            except Exception as e:
+                st.error(f"❌ Erreur backtest: {str(e)}")
+                st.stop()
         
-        # Statistiques globales
         mean_pnl = results_df['pnl'].mean()
         median_pnl = results_df['pnl'].median()
         std_pnl = results_df['pnl'].std()
@@ -703,19 +575,18 @@ elif mode == "Backtesting":
         max_loss = results_df['pnl'].min()
         sharpe = mean_pnl / std_pnl if std_pnl > 0 else 0
         
-        st.markdown("### Statistiques de la stratégie")
+        st.markdown("### Statistiques")
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         c1.metric("P&L Moyen", f"${mean_pnl:.2f}", delta=f"{mean_pnl/initial_capital*100:.1f}%")
         c2.metric("P&L Médian", f"${median_pnl:.2f}")
         c3.metric("Win Rate", f"{win_rate:.1f}%")
         c4.metric("Max Gain", f"${max_gain:.2f}")
         c5.metric("Max Loss", f"${max_loss:.2f}")
-        c6.metric("Sharpe Ratio", f"{sharpe:.3f}")
+        c6.metric("Sharpe", f"{sharpe:.3f}")
         
         st.markdown("---")
         
-        # Graphiques
-        col_hist, col_cum = st.columns(2)
+        col_hist, col_scatter = st.columns(2)
         
         with col_hist:
             fig_hist, ax = plt.subplots(figsize=(6, 4), facecolor=BG)
@@ -723,32 +594,29 @@ elif mode == "Backtesting":
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
                 sp.set_linewidth(1.5)
-            ax.hist(results_df['pnl'], bins=50, color=CYAN, alpha=0.7, edgecolor=CYAN, linewidth=0.5)
-            ax.axvline(mean_pnl, color=ACCENT, lw=2, linestyle="--", alpha=0.9, label=f"Moyenne: ${mean_pnl:.2f}")
-            ax.axvline(0, color=GRAY, lw=1.5, linestyle="-", alpha=0.7, label="Break-even")
+            ax.hist(results_df['pnl'], bins=40, color=CYAN, alpha=0.7)
+            ax.axvline(mean_pnl, color=ACCENT, lw=2, linestyle="--", label=f"Moyenne")
+            ax.axvline(0, color=GRAY, lw=1.5, linestyle="-", label="BE")
             ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-            sty(ax, f"Distribution P&L · {strategy.replace('_', ' ').title()}", "P&L ($)", "Fréquence")
+            sty(ax, f"Distribution P&L", "P&L ($)", "Fréquence")
             st.pyplot(fig_hist, use_container_width=True)
             plt.close(fig_hist)
         
-        with col_cum:
+        with col_scatter:
             fig_spot, ax = plt.subplots(figsize=(6, 4), facecolor=BG)
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
                 sp.set_linewidth(1.5)
-            ax.scatter(results_df['final_spot'], results_df['pnl'], alpha=0.5, s=20, color=PURPLE)
-            ax.axhline(0, color=GRAY, lw=1.5, linestyle="-", alpha=0.7, label="Break-even")
-            ax.axvline(S, color=YELLOW, lw=1.2, linestyle="--", alpha=0.8, label=f"Spot initial: ${S:.2f}")
-            ax.legend(fontsize=7.5, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+            ax.scatter(results_df['final_spot'], results_df['pnl'], alpha=0.5, s=15, color=PURPLE)
+            ax.axhline(0, color=GRAY, lw=1.5, linestyle="-")
+            ax.axvline(S, color=YELLOW, lw=1.2, linestyle="--")
             sty(ax, "P&L vs Spot Final", "Spot final ($)", "P&L ($)")
             st.pyplot(fig_spot, use_container_width=True)
             plt.close(fig_spot)
         
         st.markdown("---")
-        
-        # Tableau des percentiles
-        st.markdown("### Distribution des résultats")
+        st.markdown("### Percentiles")
         percentiles = [5, 25, 50, 75, 95]
         pct_data = {
             "Percentile": [f"{p}%" for p in percentiles],
