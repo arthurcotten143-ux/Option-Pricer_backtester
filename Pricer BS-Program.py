@@ -7,7 +7,6 @@ Lancer avec : streamlit run streamlit_bs_pricer.py
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from scipy.stats import norm
 from scipy.optimize import brentq
 import streamlit as st
@@ -40,17 +39,43 @@ st.markdown("""
         background-color: #000000 !important;
     }
     
-    /* === TITRES === */
-    h1, h2, h3 { 
+    /* === TITRES (SEULEMENT H1 EN BOLD) === */
+    h1 { 
         color: #00ff00 !important; 
         font-family: monospace !important; 
         font-weight: bold !important;
         text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
     }
+    h2, h3 { 
+        color: #00ff00 !important; 
+        font-family: monospace !important; 
+        font-weight: normal !important;
+    }
     
     /* === TEXTE GÉNÉRAL === */
     p, span, div, label, .stMarkdown { 
         color: #ffffff !important; 
+        font-weight: normal !important;
+    }
+    
+    /* === INPUT TEXT BOX - FOND NOIR + TEXTE BLANC === */
+    input[type="number"],
+    input[type="text"],
+    .stNumberInput input,
+    .stTextInput input {
+        background-color: #0a0a0a !important;
+        color: #ffffff !important;
+        border: 2px solid #00ff00 !important;
+        font-weight: normal !important;
+    }
+    
+    /* === SELECT BOX - FOND NOIR + TEXTE BLANC === */
+    .stSelectbox > div > div,
+    select {
+        background-color: #0a0a0a !important;
+        color: #ffffff !important;
+        border: 2px solid #00ff00 !important;
+        font-weight: normal !important;
     }
     
     /* === MÉTRIQUES === */
@@ -64,22 +89,19 @@ st.markdown("""
     div[data-testid="metric-container"] label,
     div[data-testid="metric-container"] label p {
         color: #00ff00 !important;
-        font-weight: bold !important;
+        font-weight: normal !important;
         font-size: 1rem !important;
     }
     div[data-testid="stMetricValue"],
     div[data-testid="stMetricValue"] > div,
     div[data-testid="stMetricValue"] p {
         color: #ffffff !important;
-        font-weight: bold !important;
+        font-weight: normal !important;
         font-size: 1.8rem !important;
-        text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
     }
-    div[data-testid="stMetricDelta"],
-    div[data-testid="stMetricDelta"] svg {
+    div[data-testid="stMetricDelta"] {
         color: #00ff00 !important;
-        fill: #00ff00 !important;
-        font-weight: bold !important;
+        font-weight: normal !important;
     }
     
     /* === ALERTES === */
@@ -94,6 +116,7 @@ st.markdown("""
     .stSuccess p,
     .stWarning p {
         color: #ffffff !important;
+        font-weight: normal !important;
     }
     
     /* === DATAFRAMES === */
@@ -106,7 +129,7 @@ st.markdown("""
     .dataframe th {
         background-color: #0a0a0a !important;
         color: #00ff00 !important;
-        font-weight: bold !important;
+        font-weight: normal !important;
         border: 1px solid #00ff00 !important;
         padding: 8px !important;
     }
@@ -115,6 +138,7 @@ st.markdown("""
         background-color: #000000 !important;
         border: 1px solid #333333 !important;
         padding: 8px !important;
+        font-weight: normal !important;
     }
     
     /* === LIEN AUTEUR === */
@@ -124,11 +148,12 @@ st.markdown("""
         font-family: monospace; 
         margin-top: -10px;
         margin-bottom: 15px;
+        font-weight: normal !important;
     }
     .author-link a {
         color: #00ff00 !important;
         text-decoration: none;
-        font-weight: bold;
+        font-weight: normal !important;
     }
     .author-link a:hover {
         color: #00ff00 !important;
@@ -150,6 +175,7 @@ plt.rcParams.update({
     "grid.color":       "#333333",
     "grid.linewidth":   0.6,
     "font.family":      "monospace",
+    "font.weight":      "normal",
 })
 
 BG     = "#000000"
@@ -216,7 +242,7 @@ def implied_volatility(market_price, S, K, T, r, q=0.0, opt="call"):
         return np.nan
     
     intrinsic = max(S-K, 0) if opt=="call" else max(K-S, 0)
-    if market_price < intrinsic * 0.99:  # Tolérance de 1%
+    if market_price < intrinsic * 0.99:
         return np.nan
     
     def objective(sigma):
@@ -293,27 +319,19 @@ def monte_carlo_pricer(S, K, T, r, sigma, q=0.0, opt="call", n_sims=100000, n_st
         "paths": sample_paths
     }
 
-# ─── BACKTESTING CORRIGÉ ──────────────────────────────────────────────────────
+# ─── BACKTESTING SIMPLIFIÉ ───────────────────────────────────────────────────
 
 @st.cache_data(ttl=300)
-def backtest_strategy_cached(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, n_sims):
-    """Version cachée du backtester"""
-    return backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, n_sims)
+def backtest_strategy_cached(strategy, S0, K, T, r, sigma, q, n_days, n_sims):
+    return backtest_strategy(strategy, S0, K, T, r, sigma, q, n_days, n_sims)
 
-def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, n_sims=1000):
+def backtest_strategy(strategy, S0, K, T, r, sigma, q, n_days, n_sims=1000):
     """
-    Backtest corrigé : simulation complète du P&L jusqu'à expiration
+    Backtest simplifié : P&L à expiration uniquement
     """
     np.random.seed(42)
     
-    # Calcul du nombre de jours jusqu'à expiration
-    days_to_expiry = int(T * 252)
-    n_days = min(n_days, days_to_expiry)
-    
-    dt = 1/252
-    time_remaining = T - (n_days / 252)
-    
-    # Simulation du sous-jacent
+    dt = T / n_days
     Z = np.random.standard_normal((n_sims, n_days))
     drift = (r - q - 0.5*sigma**2) * dt
     diffusion = sigma * np.sqrt(dt)
@@ -324,86 +342,49 @@ def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, 
     
     results = []
     
-    for i, S_end in enumerate(S_final):
-        # Prix d'entrée au t=0
+    for S_end in S_final:
         if strategy == "long_call":
-            entry_cost = bs(S0, K, T, r, sigma, q, "call")
-            # Valeur à t=n_days
-            if time_remaining > 0:
-                exit_value = bs(S_end, K, time_remaining, r, sigma, q, "call")
-            else:
-                exit_value = max(S_end - K, 0)
-            pnl = exit_value - entry_cost
+            entry = bs(S0, K, T, r, sigma, q, "call")
+            payoff = max(S_end - K, 0)
+            pnl = payoff - entry
             
         elif strategy == "long_put":
-            entry_cost = bs(S0, K, T, r, sigma, q, "put")
-            if time_remaining > 0:
-                exit_value = bs(S_end, K, time_remaining, r, sigma, q, "put")
-            else:
-                exit_value = max(K - S_end, 0)
-            pnl = exit_value - entry_cost
+            entry = bs(S0, K, T, r, sigma, q, "put")
+            payoff = max(K - S_end, 0)
+            pnl = payoff - entry
             
         elif strategy == "covered_call":
-            # Achat stock + vente call
-            stock_entry = S0
-            call_premium = bs(S0, K, T, r, sigma, q, "call")
-            
-            stock_exit = S_end
-            if time_remaining > 0:
-                call_cost = bs(S_end, K, time_remaining, r, sigma, q, "call")
-            else:
-                call_cost = max(S_end - K, 0)
-            
-            pnl = (stock_exit - stock_entry) + call_premium - call_cost
+            call_entry = bs(S0, K, T, r, sigma, q, "call")
+            stock_gain = S_end - S0
+            call_payoff = -max(S_end - K, 0)
+            pnl = stock_gain + call_entry + call_payoff
             
         elif strategy == "protective_put":
-            # Achat stock + achat put
-            stock_entry = S0
-            put_cost = bs(S0, K, T, r, sigma, q, "put")
-            
-            stock_exit = S_end
-            if time_remaining > 0:
-                put_value = bs(S_end, K, time_remaining, r, sigma, q, "put")
-            else:
-                put_value = max(K - S_end, 0)
-            
-            pnl = (stock_exit - stock_entry) + put_value - put_cost
+            put_entry = bs(S0, K, T, r, sigma, q, "put")
+            stock_gain = S_end - S0
+            put_payoff = max(K - S_end, 0)
+            pnl = stock_gain - put_entry + put_payoff
             
         elif strategy == "straddle":
-            # Achat call + achat put
-            call_cost = bs(S0, K, T, r, sigma, q, "call")
-            put_cost = bs(S0, K, T, r, sigma, q, "put")
-            
-            if time_remaining > 0:
-                call_value = bs(S_end, K, time_remaining, r, sigma, q, "call")
-                put_value = bs(S_end, K, time_remaining, r, sigma, q, "put")
-            else:
-                call_value = max(S_end - K, 0)
-                put_value = max(K - S_end, 0)
-            
-            pnl = (call_value + put_value) - (call_cost + put_cost)
+            call_entry = bs(S0, K, T, r, sigma, q, "call")
+            put_entry = bs(S0, K, T, r, sigma, q, "put")
+            call_payoff = max(S_end - K, 0)
+            put_payoff = max(K - S_end, 0)
+            pnl = call_payoff + put_payoff - call_entry - put_entry
             
         elif strategy == "strangle":
-            # Achat call OTM + achat put OTM
             K_call = K * 1.05
             K_put = K * 0.95
-            
-            call_cost = bs(S0, K_call, T, r, sigma, q, "call")
-            put_cost = bs(S0, K_put, T, r, sigma, q, "put")
-            
-            if time_remaining > 0:
-                call_value = bs(S_end, K_call, time_remaining, r, sigma, q, "call")
-                put_value = bs(S_end, K_put, time_remaining, r, sigma, q, "put")
-            else:
-                call_value = max(S_end - K_call, 0)
-                put_value = max(K_put - S_end, 0)
-            
-            pnl = (call_value + put_value) - (call_cost + put_cost)
+            call_entry = bs(S0, K_call, T, r, sigma, q, "call")
+            put_entry = bs(S0, K_put, T, r, sigma, q, "put")
+            call_payoff = max(S_end - K_call, 0)
+            put_payoff = max(K_put - S_end, 0)
+            pnl = call_payoff + put_payoff - call_entry - put_entry
         
         results.append({
             "final_spot": S_end,
             "pnl": pnl,
-            "return_pct": (pnl / initial_capital) * 100 if initial_capital > 0 else 0
+            "return_pct": (pnl / S0) * 100
         })
     
     return pd.DataFrame(results)
@@ -411,9 +392,9 @@ def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, 
 # ─── HELPERS PLOT ─────────────────────────────────────────────────────────────
 
 def sty(ax, title, xl, yl):
-    ax.set_title(title, color=TITLE, fontsize=11, pad=10, fontweight="bold")
-    ax.set_xlabel(xl, color=TITLE, fontsize=10, fontweight="bold")
-    ax.set_ylabel(yl, color=TITLE, fontsize=10, fontweight="bold")
+    ax.set_title(title, color=TITLE, fontsize=11, pad=10, fontweight="normal")
+    ax.set_xlabel(xl, color=TITLE, fontsize=10, fontweight="normal")
+    ax.set_ylabel(yl, color=TITLE, fontsize=10, fontweight="normal")
     ax.grid(True, alpha=0.3, linewidth=0.8)
     ax.tick_params(labelsize=9, colors=TEXT, width=1.2)
     for spine in ax.spines.values():
@@ -429,49 +410,34 @@ with st.sidebar:
     
     mode = st.selectbox(
         "Choisir le mode",
-        ["Pricing", "Implied Volatility", "Backtesting"],
-        help="Pricing: valorisation | IV: calibration | Backtesting: simulation stratégie"
+        ["Pricing", "Implied Volatility", "Backtesting"]
     )
     
     if mode == "Pricing":
         st.markdown("---")
         st.markdown("### Méthode de pricing")
-        
-        pricing_method = st.selectbox(
-            "Modèle",
-            ["Black-Scholes", "Monte Carlo"],
-            help="Choisir la méthode de valorisation"
-        )
+        pricing_method = st.selectbox("Modèle", ["Black-Scholes", "Monte Carlo"])
     
     st.markdown("---")
     st.markdown("### Paramètres")
 
-    S     = st.number_input("Spot S ($)",              value=100.0, step=1.0)
-    K     = st.number_input("Strike K ($)",            value=100.0, step=1.0)
-    T_day = st.number_input("Maturité (jours)",        value=30,    step=1, min_value=1)
-    r     = st.number_input("Taux sans risque r (%)",  value=5.0,   step=0.1) / 100
-    
-    if mode != "Implied Volatility":
-        sigma = st.number_input("Volatilité σ (%)",    value=20.0,  step=0.5) / 100
-    
-    q     = st.number_input("Dividend yield q (%)",    value=0.0,   step=0.1) / 100
+    S     = st.number_input("Spot S ($)", value=100.0, step=1.0)
+    K     = st.number_input("Strike K ($)", value=100.0, step=1.0)
+    T_day = st.number_input("Maturité (jours)", value=30, step=1, min_value=1)
+    r     = st.number_input("Taux sans risque r (%)", value=5.0, step=0.1) / 100
+    sigma = st.number_input("Volatilité σ (%)", value=20.0, step=0.5) / 100
+    q     = st.number_input("Dividend yield q (%)", value=0.0, step=0.1) / 100
     
     if mode == "Pricing":
-        prem  = st.number_input("Prime payée ($) [opt.]",  value=0.0,   step=0.01)
+        prem = st.number_input("Prime payée ($) [opt.]", value=0.0, step=0.01)
     
-    opt   = st.radio("Type d'option", ["call", "put"], horizontal=True)
+    opt = st.radio("Type d'option", ["call", "put"], horizontal=True)
     
-    # Paramètres spécifiques
     if mode == "Pricing" and pricing_method == "Monte Carlo":
         st.markdown("---")
         st.markdown("### Paramètres Monte Carlo")
-        n_sims = st.selectbox(
-            "Nombre de simulations",
-            [10000, 50000, 100000, 250000],
-            index=2,
-            help="⚠️ >250k peut causer des timeouts"
-        )
-        n_steps = st.selectbox("Nombre de pas", [50, 100, 252], index=2)
+        n_sims = st.selectbox("Simulations", [10000, 50000, 100000, 250000], index=2)
+        n_steps = st.selectbox("Pas de temps", [50, 100, 252], index=2)
         antithetic = st.checkbox("Variables antithétiques", value=True)
         seed = st.number_input("Seed", value=42, step=1)
     
@@ -483,13 +449,11 @@ with st.sidebar:
     elif mode == "Backtesting":
         st.markdown("---")
         st.markdown("### Paramètres Backtest")
-        sigma = st.number_input("Volatilité σ (%)",    value=20.0,  step=0.5) / 100
         strategy = st.selectbox(
             "Stratégie",
             ["long_call", "long_put", "covered_call", "protective_put", "straddle", "strangle"],
             format_func=lambda x: x.replace('_', ' ').title()
         )
-        initial_capital = st.number_input("Capital initial ($)", value=10000, step=100)
         backtest_days = st.slider("Horizon (jours)", 1, min(365, T_day), min(T_day, 30))
         n_simulations = st.selectbox("Simulations", [100, 500, 1000, 2000], index=2)
 
@@ -499,11 +463,11 @@ with st.sidebar:
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 if mode == "Pricing":
-    st.markdown(f"# ◈ Options Pricer — {pricing_method}")
+    st.markdown(f"# Options Pricer — {pricing_method}")
 elif mode == "Implied Volatility":
-    st.markdown("# ◈ Implied Volatility Calibrator")
+    st.markdown("# Implied Volatility Calibrator")
 else:
-    st.markdown("# ◈ Strategy Backtester")
+    st.markdown("# Strategy Backtester")
 
 st.markdown(
     '<div class="author-link">by <a href="https://www.linkedin.com/in/arthurcotten/" target="_blank">Arthur Cotten</a> • '
@@ -519,8 +483,8 @@ if mode == "Pricing":
         T = T_day / 365
         
         if pricing_method == "Black-Scholes":
-            price  = bs(S, K, T, r, sigma, q, opt)
-            g      = greeks(S, K, T, r, sigma, q, opt)
+            price = bs(S, K, T, r, sigma, q, opt)
+            g = greeks(S, K, T, r, sigma, q, opt)
             std_error = None
             mc_paths = None
         else:
@@ -533,14 +497,13 @@ if mode == "Pricing":
                     mc_paths = mc_result["paths"]
                 except Exception as e:
                     st.error(f"❌ Erreur Monte Carlo: {str(e)}")
-                    st.info("💡 Essayez de réduire le nombre de simulations")
                     st.stop()
         
-        prob   = prob_itm(S, K, T, r, sigma, q, opt)
-        cost   = prem if prem > 0 else price
-        be     = (K + cost) if opt=="call" else (K - cost)
+        prob = prob_itm(S, K, T, r, sigma, q, opt)
+        cost = prem if prem > 0 else price
+        be = (K + cost) if opt=="call" else (K - cost)
         intrin = max(S-K, 0) if opt=="call" else max(K-S, 0)
-        tv     = price - intrin
+        tv = price - intrin
         moneyness = S/K
         mon_lbl = ("ATM" if abs(moneyness-1)<0.01
                    else "ITM" if (opt=="call" and moneyness>1) or (opt=="put" and moneyness<1)
@@ -549,7 +512,7 @@ if mode == "Pricing":
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         c1.metric("Prix", f"${price:.4f}")
         if std_error is not None:
-            c2.metric("Std Error (MC)", f"${std_error:.4f}")
+            c2.metric("Std Error", f"${std_error:.4f}")
         else:
             c2.metric("Break-even", f"${be:.2f}")
         c3.metric("Prob ITM", f"{prob*100:.1f}%")
@@ -558,25 +521,25 @@ if mode == "Pricing":
         c6.metric("Intrinsèque", f"${intrin:.4f}")
 
         st.markdown("---")
-        st.markdown("### Greeks — 1er ordre")
+        st.markdown("### Greeks")
         gc1, gc2, gc3, gc4, gc5 = st.columns(5)
-        gc1.metric("Delta Δ",  f"{g['delta']:+.5f}")
-        gc2.metric("Gamma Γ",  f"{g['gamma']:.6f}")
-        gc3.metric("Vega ν",   f"{g['vega']:.5f}")
-        gc4.metric("Theta Θ",  f"{g['theta']:+.5f}")
-        gc5.metric("Rho ρ",    f"{g['rho']:+.5f}")
+        gc1.metric("Delta", f"{g['delta']:+.5f}")
+        gc2.metric("Gamma", f"{g['gamma']:.6f}")
+        gc3.metric("Vega", f"{g['vega']:.5f}")
+        gc4.metric("Theta", f"{g['theta']:+.5f}")
+        gc5.metric("Rho", f"{g['rho']:+.5f}")
 
         st.markdown("---")
         alerts = []
-        if T < 7/365:              alerts.append("⚠️ Maturité < 7 jours")
+        if T < 7/365: alerts.append("⚠️ Maturité < 7 jours")
         if abs(g["delta"]) < 0.10: alerts.append("⚠️ Delta très faible")
-        if tv < 0.005:             alerts.append("⚠️ Time value nulle")
-        if prob < 0.15:            alerts.append("⚠️ Prob ITM < 15%")
+        if tv < 0.005: alerts.append("⚠️ Time value nulle")
+        if prob < 0.15: alerts.append("⚠️ Prob ITM < 15%")
         
         for a in alerts:
             st.warning(a)
         if not alerts:
-            st.success("✓ Paramètres OK")
+            st.success("✓ OK")
 
         S_range = np.linspace(S*0.7, S*1.3, 200)
         
@@ -591,11 +554,11 @@ if mode == "Pricing":
             pnl = (np.maximum(S_range-K, 0) - cost if opt=="call"
                    else np.maximum(K-S_range, 0) - cost)
             ax.axhline(0, color=GRAY, lw=2, alpha=0.7)
-            ax.axvline(K,  color=YELLOW, lw=2.5, linestyle="--", alpha=0.95, label=f"Strike ${K:.0f}")
-            ax.axvline(be, color=GREEN,  lw=2.5, linestyle="--", alpha=0.95, label=f"BE ${be:.2f}")
+            ax.axvline(K, color=YELLOW, lw=2.5, linestyle="--", alpha=0.95, label=f"Strike ${K:.0f}")
+            ax.axvline(be, color=GREEN, lw=2.5, linestyle="--", alpha=0.95, label=f"BE ${be:.2f}")
             ax.fill_between(S_range, pnl, 0, where=pnl>=0, alpha=0.3, color=GREEN)
-            ax.fill_between(S_range, pnl, 0, where=pnl<0,  alpha=0.3, color=RED)
-            ax.plot(S_range, pnl, color=ACCENT, lw=3, label="P&L expiration")
+            ax.fill_between(S_range, pnl, 0, where=pnl<0, alpha=0.3, color=RED)
+            ax.plot(S_range, pnl, color=ACCENT, lw=3, label="P&L")
             ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, f"P&L · {opt.upper()}", "Spot ($)", "P&L ($)")
             st.pyplot(fig1, use_container_width=True)
@@ -610,7 +573,7 @@ if mode == "Pricing":
                     sp.set_linewidth(2)
                 ax.hist(mc_paths, bins=40, color=CYAN, alpha=0.7, edgecolor=CYAN, linewidth=0.5)
                 ax.axvline(K, color=YELLOW, lw=2.5, linestyle="--", alpha=0.9)
-                sty(ax, f"Distribution S(T)", "Prix terminal ($)", "Freq")
+                sty(ax, "Distribution S(T)", "Prix terminal ($)", "Freq")
                 st.pyplot(fig2, use_container_width=True)
                 plt.close(fig2)
 
@@ -620,42 +583,34 @@ elif mode == "Implied Volatility":
     if run or True:
         T = T_day / 365
         
-        with st.spinner('Calibration IV...'):
+        with st.spinner('Calibration...'):
             iv = implied_volatility(market_price, S, K, T, r, q, opt)
         
         if np.isnan(iv):
-            st.error("❌ Impossible de calibrer l'IV - vérifiez que le prix > valeur intrinsèque")
+            st.error("❌ Impossible de calibrer l'IV")
         else:
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Vol Implicite", f"{iv*100:.2f}%")
             col2.metric("Prix marché", f"${market_price:.4f}")
             col3.metric("Prix théorique", f"${bs(S, K, T, r, iv, q, opt):.4f}")
-            
             g_iv = greeks(S, K, T, r, iv, q, opt)
             col4.metric("Vega", f"{g_iv['vega']:.5f}")
             
             st.markdown("---")
-            
-            # Génération du smile complet (calls + puts)
-            st.markdown("### Volatility Skew & Surface")
+            st.markdown("### Volatility Skew")
             
             col_skew, col_term = st.columns(2)
             
             with col_skew:
-                # SKEW: Vol implicite vs Strike (Calls ET Puts)
                 strikes = np.linspace(S*0.7, S*1.3, 20)
                 iv_calls = []
                 iv_puts = []
                 
                 for strike in strikes:
-                    # Prix théoriques avec la vol calibrée
                     call_price = bs(S, strike, T, r, iv, q, "call")
                     put_price = bs(S, strike, T, r, iv, q, "put")
-                    
-                    # Recalibration de l'IV pour chaque strike
                     iv_call = implied_volatility(call_price, S, strike, T, r, q, "call")
                     iv_put = implied_volatility(put_price, S, strike, T, r, q, "put")
-                    
                     iv_calls.append(iv_call if not np.isnan(iv_call) else None)
                     iv_puts.append(iv_put if not np.isnan(iv_put) else None)
                 
@@ -665,40 +620,31 @@ elif mode == "Implied Volatility":
                     sp.set_edgecolor(BORDER)
                     sp.set_linewidth(2)
                 
-                # Plot Calls
                 valid_calls = [(k/S, v*100) for k, v in zip(strikes, iv_calls) if v is not None]
                 if valid_calls:
                     x_calls, y_calls = zip(*valid_calls)
-                    ax.plot(x_calls, y_calls, color=CYAN, lw=3, marker='o', markersize=6, label='Calls', alpha=0.9)
+                    ax.plot(x_calls, y_calls, color=CYAN, lw=3, marker='o', markersize=6, label='Calls')
                 
-                # Plot Puts
                 valid_puts = [(k/S, v*100) for k, v in zip(strikes, iv_puts) if v is not None]
                 if valid_puts:
                     x_puts, y_puts = zip(*valid_puts)
-                    ax.plot(x_puts, y_puts, color=PURPLE, lw=3, marker='s', markersize=6, label='Puts', alpha=0.9)
+                    ax.plot(x_puts, y_puts, color=PURPLE, lw=3, marker='s', markersize=6, label='Puts')
                 
                 ax.axvline(1.0, color=GRAY, lw=1.5, linestyle=":", alpha=0.7, label="ATM")
-                ax.axhline(iv*100, color=ACCENT, lw=1.5, linestyle="--", alpha=0.7, label=f"IV ref: {iv*100:.2f}%")
+                ax.axhline(iv*100, color=ACCENT, lw=1.5, linestyle="--", alpha=0.7)
                 ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-                sty(ax, "Volatility Skew (Calls vs Puts)", "Moneyness (K/S)", "IV (%)")
+                sty(ax, "Skew (Calls vs Puts)", "Moneyness (K/S)", "IV (%)")
                 st.pyplot(fig_skew, use_container_width=True)
                 plt.close(fig_skew)
             
             with col_term:
-                # TERM STRUCTURE: Vol implicite vs Maturité
                 maturities = np.linspace(max(T, 7/365), min(T*3, 1.0), 12)
                 term_iv_calls = []
-                term_iv_puts = []
                 
                 for mat in maturities:
                     call_price = bs(S, K, mat, r, iv, q, "call")
-                    put_price = bs(S, K, mat, r, iv, q, "put")
-                    
                     iv_call = implied_volatility(call_price, S, K, mat, r, q, "call")
-                    iv_put = implied_volatility(put_price, S, K, mat, r, q, "put")
-                    
                     term_iv_calls.append(iv_call if not np.isnan(iv_call) else None)
-                    term_iv_puts.append(iv_put if not np.isnan(iv_put) else None)
                 
                 fig_term, ax = plt.subplots(figsize=(7, 5), facecolor=BG)
                 ax.set_facecolor(PANEL)
@@ -706,19 +652,13 @@ elif mode == "Implied Volatility":
                     sp.set_edgecolor(BORDER)
                     sp.set_linewidth(2)
                 
-                valid_term_calls = [(m*365, v*100) for m, v in zip(maturities, term_iv_calls) if v is not None]
-                if valid_term_calls:
-                    x_term_c, y_term_c = zip(*valid_term_calls)
-                    ax.plot(x_term_c, y_term_c, color=CYAN, lw=3, marker='o', markersize=6, label='Calls', alpha=0.9)
+                valid_term = [(m*365, v*100) for m, v in zip(maturities, term_iv_calls) if v is not None]
+                if valid_term:
+                    x_term, y_term = zip(*valid_term)
+                    ax.plot(x_term, y_term, color=CYAN, lw=3, marker='o', markersize=6)
                 
-                valid_term_puts = [(m*365, v*100) for m, v in zip(maturities, term_iv_puts) if v is not None]
-                if valid_term_puts:
-                    x_term_p, y_term_p = zip(*valid_term_puts)
-                    ax.plot(x_term_p, y_term_p, color=PURPLE, lw=3, marker='s', markersize=6, label='Puts', alpha=0.9)
-                
-                ax.axvline(T*365, color=GRAY, lw=1.5, linestyle=":", alpha=0.7, label=f"Maturité: {T_day}j")
+                ax.axvline(T*365, color=GRAY, lw=1.5, linestyle=":", alpha=0.7)
                 ax.axhline(iv*100, color=ACCENT, lw=1.5, linestyle="--", alpha=0.7)
-                ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
                 sty(ax, "Term Structure", "Maturité (jours)", "IV (%)")
                 st.pyplot(fig_term, use_container_width=True)
                 plt.close(fig_term)
@@ -729,12 +669,11 @@ elif mode == "Backtesting":
     if run or True:
         T = T_day / 365
         
-        with st.spinner(f'Backtesting {n_simulations} simulations...'):
+        with st.spinner(f'Backtesting...'):
             try:
-                results_df = backtest_strategy_cached(strategy, S, K, T, r, sigma, q, initial_capital, backtest_days, n_simulations)
+                results_df = backtest_strategy_cached(strategy, S, K, T, r, sigma, q, backtest_days, n_simulations)
             except Exception as e:
-                st.error(f"❌ Erreur backtest: {str(e)}")
-                st.info(f"Debug: {e}")
+                st.error(f"❌ Erreur: {str(e)}")
                 st.stop()
         
         mean_pnl = results_df['pnl'].mean()
@@ -745,9 +684,9 @@ elif mode == "Backtesting":
         max_loss = results_df['pnl'].min()
         sharpe = (mean_pnl / std_pnl * np.sqrt(252)) if std_pnl > 0 else 0
         
-        st.markdown("### Statistiques de performance")
+        st.markdown("### Performance")
         c1, c2, c3, c4, c5, c6 = st.columns(6)
-        c1.metric("P&L Moyen", f"${mean_pnl:.2f}", delta=f"{mean_pnl/abs(mean_pnl) if mean_pnl != 0 else 0:.1f}")
+        c1.metric("P&L Moyen", f"${mean_pnl:.2f}")
         c2.metric("P&L Médian", f"${median_pnl:.2f}")
         c3.metric("Win Rate", f"{win_rate:.1f}%")
         c4.metric("Max Gain", f"${max_gain:.2f}")
@@ -764,11 +703,11 @@ elif mode == "Backtesting":
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
                 sp.set_linewidth(2)
-            ax.hist(results_df['pnl'], bins=50, color=CYAN, alpha=0.7, edgecolor=CYAN, linewidth=0.5)
-            ax.axvline(mean_pnl, color=ACCENT, lw=3, linestyle="--", label=f"Moyenne: ${mean_pnl:.0f}")
-            ax.axvline(0, color=GRAY, lw=2.5, linestyle="-", alpha=0.8, label="Break-even")
+            ax.hist(results_df['pnl'], bins=50, color=CYAN, alpha=0.7)
+            ax.axvline(mean_pnl, color=ACCENT, lw=3, linestyle="--", label=f"Moyenne")
+            ax.axvline(0, color=GRAY, lw=2.5, linestyle="-", label="BE")
             ax.legend(fontsize=10, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-            sty(ax, f"Distribution P&L · {strategy.replace('_', ' ').title()}", "P&L ($)", "Fréquence")
+            sty(ax, f"Distribution P&L · {strategy.replace('_', ' ').title()}", "P&L ($)", "Freq")
             st.pyplot(fig_hist, use_container_width=True)
             plt.close(fig_hist)
         
@@ -778,16 +717,16 @@ elif mode == "Backtesting":
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
                 sp.set_linewidth(2)
-            ax.scatter(results_df['final_spot'], results_df['pnl'], alpha=0.6, s=30, color=PURPLE, edgecolors='white', linewidths=0.5)
-            ax.axhline(0, color=GRAY, lw=2.5, linestyle="-", alpha=0.8, label="Break-even")
-            ax.axvline(S, color=YELLOW, lw=2.5, linestyle="--", alpha=0.9, label=f"Spot initial: ${S:.0f}")
+            ax.scatter(results_df['final_spot'], results_df['pnl'], alpha=0.6, s=30, color=PURPLE)
+            ax.axhline(0, color=GRAY, lw=2.5, linestyle="-", label="BE")
+            ax.axvline(S, color=YELLOW, lw=2.5, linestyle="--", label=f"S0")
             ax.legend(fontsize=10, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, "P&L vs Spot Final", "Spot final ($)", "P&L ($)")
             st.pyplot(fig_spot, use_container_width=True)
             plt.close(fig_spot)
         
         st.markdown("---")
-        st.markdown("### Distribution des résultats")
+        st.markdown("### Percentiles")
         percentiles = [5, 25, 50, 75, 95]
         pct_data = {
             "Percentile": [f"{p}%" for p in percentiles],
