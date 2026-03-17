@@ -1,7 +1,7 @@
 """
 Options Pricer — Streamlit
 Compatible GitHub Codespaces / navigateur
-Lancer avec : streamlit run streamlit_bs_pricer_fixed.py
+Lancer avec : streamlit run streamlit_bs_pricer.py
 """
 
 import numpy as np
@@ -24,101 +24,147 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    .main { background-color: #0a0e17; }
-    .block-container { padding-top: 1rem; }
-    [data-testid="stSidebar"] { background-color: #0f1219; }
-    h1, h2, h3 { color: #4ade80; font-family: monospace; font-weight: normal; }
-    p, span, div, label { color: #e5e7eb !important; }
+    /* === FOND GÉNÉRAL === */
+    .main { 
+        background-color: #000000 !important; 
+    }
+    .block-container { 
+        padding-top: 1rem !important;
+        background-color: #000000 !important;
+    }
+    [data-testid="stSidebar"] { 
+        background-color: #0a0a0a !important; 
+    }
+    [data-testid="stVerticalBlock"],
+    [data-testid="stHorizontalBlock"] {
+        background-color: #000000 !important;
+    }
     
-    /* Fix pour les métriques - texte blanc sur fond sombre */
+    /* === TITRES === */
+    h1, h2, h3 { 
+        color: #00ff00 !important; 
+        font-family: monospace !important; 
+        font-weight: bold !important;
+        text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    }
+    
+    /* === TEXTE GÉNÉRAL === */
+    p, span, div, label, .stMarkdown { 
+        color: #ffffff !important; 
+    }
+    
+    /* === MÉTRIQUES === */
     div[data-testid="metric-container"] {
-        background-color: #1a1f2e;
-        border: 1px solid #22c55e;
-        border-radius: 8px;
-        padding: 12px;
+        background-color: #000000 !important;
+        border: 3px solid #00ff00 !important;
+        border-radius: 10px !important;
+        padding: 16px !important;
+        box-shadow: 0 0 15px rgba(0, 255, 0, 0.3) !important;
     }
-    div[data-testid="metric-container"] label {
-        color: #4ade80 !important;
-        font-weight: normal !important;
-        font-size: 0.9rem !important;
+    div[data-testid="metric-container"] label,
+    div[data-testid="metric-container"] label p {
+        color: #00ff00 !important;
+        font-weight: bold !important;
+        font-size: 1rem !important;
     }
-    div[data-testid="stMetricValue"] {
+    div[data-testid="stMetricValue"],
+    div[data-testid="stMetricValue"] > div,
+    div[data-testid="stMetricValue"] p {
         color: #ffffff !important;
         font-weight: bold !important;
-        font-size: 1.2rem !important;
+        font-size: 1.8rem !important;
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
     }
-    div[data-testid="stMetricDelta"] {
-        color: #10b981 !important;
-    }
-    
-    /* Fix pour les alertes */
-    .stAlert {
-        background-color: #1a1f2e !important;
-        border: 1px solid #22c55e !important;
-        color: #e5e7eb !important;
+    div[data-testid="stMetricDelta"],
+    div[data-testid="stMetricDelta"] svg {
+        color: #00ff00 !important;
+        fill: #00ff00 !important;
+        font-weight: bold !important;
     }
     
-    /* Fix pour les dataframes */
+    /* === ALERTES === */
+    .stAlert,
+    .stSuccess,
+    .stWarning {
+        background-color: #0a0a0a !important;
+        border: 2px solid #00ff00 !important;
+        color: #ffffff !important;
+    }
+    .stAlert p,
+    .stSuccess p,
+    .stWarning p {
+        color: #ffffff !important;
+    }
+    
+    /* === DATAFRAMES === */
     .dataframe {
-        font-size: 0.85rem !important;
+        font-size: 1rem !important;
         font-family: monospace !important;
-        color: #e5e7eb !important;
-        background-color: #1a1f2e !important;
+        background-color: #000000 !important;
+        border: 2px solid #00ff00 !important;
     }
     .dataframe th {
-        background-color: #0f1219 !important;
-        color: #4ade80 !important;
+        background-color: #0a0a0a !important;
+        color: #00ff00 !important;
+        font-weight: bold !important;
+        border: 1px solid #00ff00 !important;
+        padding: 8px !important;
     }
     .dataframe td {
         color: #ffffff !important;
+        background-color: #000000 !important;
+        border: 1px solid #333333 !important;
+        padding: 8px !important;
     }
     
+    /* === LIEN AUTEUR === */
     .author-link { 
-        color: #9ca3af; 
-        font-size: 0.85rem; 
+        color: #888888 !important; 
+        font-size: 0.9rem; 
         font-family: monospace; 
         margin-top: -10px;
         margin-bottom: 15px;
     }
     .author-link a {
-        color: #4ade80;
+        color: #00ff00 !important;
         text-decoration: none;
-        transition: color 0.2s;
+        font-weight: bold;
     }
     .author-link a:hover {
-        color: #22c55e;
+        color: #00ff00 !important;
         text-decoration: underline;
+        text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ─── STYLE MATPLOTLIB ─────────────────────────────────────────────────────────
 plt.rcParams.update({
-    "figure.facecolor": "#0f1219",
-    "axes.facecolor":   "#1a1f2e",
-    "axes.edgecolor":   "#22c55e",
-    "axes.labelcolor":  "#4ade80",
-    "text.color":       "#e5e7eb",
-    "xtick.color":      "#e5e7eb",
-    "ytick.color":      "#e5e7eb",
-    "grid.color":       "#374151",
+    "figure.facecolor": "#000000",
+    "axes.facecolor":   "#0a0a0a",
+    "axes.edgecolor":   "#00ff00",
+    "axes.labelcolor":  "#00ff00",
+    "text.color":       "#ffffff",
+    "xtick.color":      "#ffffff",
+    "ytick.color":      "#ffffff",
+    "grid.color":       "#333333",
     "grid.linewidth":   0.6,
     "font.family":      "monospace",
 })
 
-BG     = "#0f1219"
-PANEL  = "#1a1f2e"
-BORDER = "#22c55e"
-ACCENT = "#4ade80"
-GREEN  = "#10b981"
-RED    = "#ef4444"
-YELLOW = "#f59e0b"
-PURPLE = "#a78bfa"
-CYAN   = "#06b6d4"
-ORANGE = "#fb923c"
-GRAY   = "#9ca3af"
-TEXT   = "#e5e7eb"
-TITLE  = "#4ade80"
+BG     = "#000000"
+PANEL  = "#0a0a0a"
+BORDER = "#00ff00"
+ACCENT = "#00ff00"
+GREEN  = "#00ff00"
+RED    = "#ff0000"
+YELLOW = "#ffff00"
+PURPLE = "#ff00ff"
+CYAN   = "#00ffff"
+ORANGE = "#ff8800"
+GRAY   = "#888888"
+TEXT   = "#ffffff"
+TITLE  = "#00ff00"
 
 # ─── BLACK-SCHOLES ────────────────────────────────────────────────────────────
 
@@ -170,7 +216,7 @@ def implied_volatility(market_price, S, K, T, r, q=0.0, opt="call"):
         return np.nan
     
     intrinsic = max(S-K, 0) if opt=="call" else max(K-S, 0)
-    if market_price < intrinsic:
+    if market_price < intrinsic * 0.99:  # Tolérance de 1%
         return np.nan
     
     def objective(sigma):
@@ -247,7 +293,7 @@ def monte_carlo_pricer(S, K, T, r, sigma, q=0.0, opt="call", n_sims=100000, n_st
         "paths": sample_paths
     }
 
-# ─── BACKTESTING OPTIMISÉ ─────────────────────────────────────────────────────
+# ─── BACKTESTING CORRIGÉ ──────────────────────────────────────────────────────
 
 @st.cache_data(ttl=300)
 def backtest_strategy_cached(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, n_sims):
@@ -255,10 +301,19 @@ def backtest_strategy_cached(strategy, S0, K, T, r, sigma, q, initial_capital, n
     return backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, n_sims)
 
 def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, n_sims=1000):
-    """Backtest vectorisé pour performance"""
+    """
+    Backtest corrigé : simulation complète du P&L jusqu'à expiration
+    """
     np.random.seed(42)
-    dt = 1/252
     
+    # Calcul du nombre de jours jusqu'à expiration
+    days_to_expiry = int(T * 252)
+    n_days = min(n_days, days_to_expiry)
+    
+    dt = 1/252
+    time_remaining = T - (n_days / 252)
+    
+    # Simulation du sous-jacent
     Z = np.random.standard_normal((n_sims, n_days))
     drift = (r - q - 0.5*sigma**2) * dt
     diffusion = sigma * np.sqrt(dt)
@@ -269,49 +324,86 @@ def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, 
     
     results = []
     
-    for i, S in enumerate(S_final):
-        capital = initial_capital
-        
+    for i, S_end in enumerate(S_final):
+        # Prix d'entrée au t=0
         if strategy == "long_call":
-            entry_price = bs(S0, K, T, r, sigma, q, "call")
-            payoff = max(S - K, 0)
-            pnl = capital - entry_price + payoff
+            entry_cost = bs(S0, K, T, r, sigma, q, "call")
+            # Valeur à t=n_days
+            if time_remaining > 0:
+                exit_value = bs(S_end, K, time_remaining, r, sigma, q, "call")
+            else:
+                exit_value = max(S_end - K, 0)
+            pnl = exit_value - entry_cost
             
         elif strategy == "long_put":
-            entry_price = bs(S0, K, T, r, sigma, q, "put")
-            payoff = max(K - S, 0)
-            pnl = capital - entry_price + payoff
+            entry_cost = bs(S0, K, T, r, sigma, q, "put")
+            if time_remaining > 0:
+                exit_value = bs(S_end, K, time_remaining, r, sigma, q, "put")
+            else:
+                exit_value = max(K - S_end, 0)
+            pnl = exit_value - entry_cost
             
         elif strategy == "covered_call":
-            call_price = bs(S0, K, T, r, sigma, q, "call")
-            call_payoff = -max(S - K, 0)
-            pnl = capital - S0 + call_price + S + call_payoff
+            # Achat stock + vente call
+            stock_entry = S0
+            call_premium = bs(S0, K, T, r, sigma, q, "call")
+            
+            stock_exit = S_end
+            if time_remaining > 0:
+                call_cost = bs(S_end, K, time_remaining, r, sigma, q, "call")
+            else:
+                call_cost = max(S_end - K, 0)
+            
+            pnl = (stock_exit - stock_entry) + call_premium - call_cost
             
         elif strategy == "protective_put":
-            put_price = bs(S0, K, T, r, sigma, q, "put")
-            put_payoff = max(K - S, 0)
-            pnl = capital - S0 - put_price + S + put_payoff
+            # Achat stock + achat put
+            stock_entry = S0
+            put_cost = bs(S0, K, T, r, sigma, q, "put")
+            
+            stock_exit = S_end
+            if time_remaining > 0:
+                put_value = bs(S_end, K, time_remaining, r, sigma, q, "put")
+            else:
+                put_value = max(K - S_end, 0)
+            
+            pnl = (stock_exit - stock_entry) + put_value - put_cost
             
         elif strategy == "straddle":
-            call_price = bs(S0, K, T, r, sigma, q, "call")
-            put_price = bs(S0, K, T, r, sigma, q, "put")
-            call_payoff = max(S - K, 0)
-            put_payoff = max(K - S, 0)
-            pnl = capital - call_price - put_price + call_payoff + put_payoff
+            # Achat call + achat put
+            call_cost = bs(S0, K, T, r, sigma, q, "call")
+            put_cost = bs(S0, K, T, r, sigma, q, "put")
+            
+            if time_remaining > 0:
+                call_value = bs(S_end, K, time_remaining, r, sigma, q, "call")
+                put_value = bs(S_end, K, time_remaining, r, sigma, q, "put")
+            else:
+                call_value = max(S_end - K, 0)
+                put_value = max(K - S_end, 0)
+            
+            pnl = (call_value + put_value) - (call_cost + put_cost)
             
         elif strategy == "strangle":
+            # Achat call OTM + achat put OTM
             K_call = K * 1.05
             K_put = K * 0.95
-            call_price = bs(S0, K_call, T, r, sigma, q, "call")
-            put_price = bs(S0, K_put, T, r, sigma, q, "put")
-            call_payoff = max(S - K_call, 0)
-            put_payoff = max(K_put - S, 0)
-            pnl = capital - call_price - put_price + call_payoff + put_payoff
+            
+            call_cost = bs(S0, K_call, T, r, sigma, q, "call")
+            put_cost = bs(S0, K_put, T, r, sigma, q, "put")
+            
+            if time_remaining > 0:
+                call_value = bs(S_end, K_call, time_remaining, r, sigma, q, "call")
+                put_value = bs(S_end, K_put, time_remaining, r, sigma, q, "put")
+            else:
+                call_value = max(S_end - K_call, 0)
+                put_value = max(K_put - S_end, 0)
+            
+            pnl = (call_value + put_value) - (call_cost + put_cost)
         
         results.append({
-            "final_spot": S,
-            "pnl": pnl - initial_capital,
-            "return_pct": (pnl - initial_capital) / initial_capital * 100
+            "final_spot": S_end,
+            "pnl": pnl,
+            "return_pct": (pnl / initial_capital) * 100 if initial_capital > 0 else 0
         })
     
     return pd.DataFrame(results)
@@ -319,13 +411,14 @@ def backtest_strategy(strategy, S0, K, T, r, sigma, q, initial_capital, n_days, 
 # ─── HELPERS PLOT ─────────────────────────────────────────────────────────────
 
 def sty(ax, title, xl, yl):
-    ax.set_title(title, color=TITLE, fontsize=10, pad=8, fontweight="normal")
-    ax.set_xlabel(xl, color=TITLE, fontsize=9, fontweight="normal")
-    ax.set_ylabel(yl, color=TITLE, fontsize=9, fontweight="normal")
-    ax.grid(True, alpha=0.4, linewidth=0.7)
-    ax.tick_params(labelsize=8, colors=TEXT, width=1.2)
+    ax.set_title(title, color=TITLE, fontsize=11, pad=10, fontweight="bold")
+    ax.set_xlabel(xl, color=TITLE, fontsize=10, fontweight="bold")
+    ax.set_ylabel(yl, color=TITLE, fontsize=10, fontweight="bold")
+    ax.grid(True, alpha=0.3, linewidth=0.8)
+    ax.tick_params(labelsize=9, colors=TEXT, width=1.2)
     for spine in ax.spines.values():
-        spine.set_linewidth(1.5)
+        spine.set_linewidth(2)
+        spine.set_edgecolor(BORDER)
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 
@@ -397,7 +490,7 @@ with st.sidebar:
             format_func=lambda x: x.replace('_', ' ').title()
         )
         initial_capital = st.number_input("Capital initial ($)", value=10000, step=100)
-        backtest_days = st.slider("Horizon (jours)", 1, 365, T_day)
+        backtest_days = st.slider("Horizon (jours)", 1, min(365, T_day), min(T_day, 30))
         n_simulations = st.selectbox("Simulations", [100, 500, 1000, 2000], index=2)
 
     st.markdown("---")
@@ -490,33 +583,33 @@ if mode == "Pricing":
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            fig1, ax = plt.subplots(figsize=(8, 4), facecolor=BG)
+            fig1, ax = plt.subplots(figsize=(8, 4.5), facecolor=BG)
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
-                sp.set_linewidth(1.5)
+                sp.set_linewidth(2)
             pnl = (np.maximum(S_range-K, 0) - cost if opt=="call"
                    else np.maximum(K-S_range, 0) - cost)
-            ax.axhline(0, color=GRAY, lw=1.5, alpha=0.7)
-            ax.axvline(K,  color=YELLOW, lw=2, linestyle="--", alpha=0.95, label=f"Strike ${K:.0f}")
-            ax.axvline(be, color=GREEN,  lw=2.2, linestyle="--", alpha=0.95, label=f"BE ${be:.2f}")
+            ax.axhline(0, color=GRAY, lw=2, alpha=0.7)
+            ax.axvline(K,  color=YELLOW, lw=2.5, linestyle="--", alpha=0.95, label=f"Strike ${K:.0f}")
+            ax.axvline(be, color=GREEN,  lw=2.5, linestyle="--", alpha=0.95, label=f"BE ${be:.2f}")
             ax.fill_between(S_range, pnl, 0, where=pnl>=0, alpha=0.3, color=GREEN)
             ax.fill_between(S_range, pnl, 0, where=pnl<0,  alpha=0.3, color=RED)
-            ax.plot(S_range, pnl, color=ACCENT, lw=2.5, label="P&L expiration")
-            ax.legend(fontsize=8, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+            ax.plot(S_range, pnl, color=ACCENT, lw=3, label="P&L expiration")
+            ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, f"P&L · {opt.upper()}", "Spot ($)", "P&L ($)")
             st.pyplot(fig1, use_container_width=True)
             plt.close(fig1)
 
         with col2:
             if pricing_method == "Monte Carlo" and mc_paths is not None:
-                fig2, ax = plt.subplots(figsize=(4, 4), facecolor=BG)
+                fig2, ax = plt.subplots(figsize=(4.5, 4.5), facecolor=BG)
                 ax.set_facecolor(PANEL)
                 for sp in ax.spines.values(): 
                     sp.set_edgecolor(BORDER)
-                    sp.set_linewidth(1.5)
+                    sp.set_linewidth(2)
                 ax.hist(mc_paths, bins=40, color=CYAN, alpha=0.7, edgecolor=CYAN, linewidth=0.5)
-                ax.axvline(K, color=YELLOW, lw=2, linestyle="--", alpha=0.9)
+                ax.axvline(K, color=YELLOW, lw=2.5, linestyle="--", alpha=0.9)
                 sty(ax, f"Distribution S(T)", "Prix terminal ($)", "Freq")
                 st.pyplot(fig2, use_container_width=True)
                 plt.close(fig2)
@@ -531,7 +624,7 @@ elif mode == "Implied Volatility":
             iv = implied_volatility(market_price, S, K, T, r, q, opt)
         
         if np.isnan(iv):
-            st.error("❌ Impossible de calibrer l'IV")
+            st.error("❌ Impossible de calibrer l'IV - vérifiez que le prix > valeur intrinsèque")
         else:
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Vol Implicite", f"{iv*100:.2f}%")
@@ -542,26 +635,93 @@ elif mode == "Implied Volatility":
             col4.metric("Vega", f"{g_iv['vega']:.5f}")
             
             st.markdown("---")
-            st.markdown("### Volatility Smile")
             
-            strikes = np.linspace(S*0.75, S*1.25, 12)
-            ivs = []
-            for strike in strikes:
-                theo_price = bs(S, strike, T, r, iv, q, opt)
-                ivs.append(implied_volatility(theo_price, S, strike, T, r, q, opt))
+            # Génération du smile complet (calls + puts)
+            st.markdown("### Volatility Skew & Surface")
             
-            fig_smile, ax = plt.subplots(figsize=(10, 5), facecolor=BG)
-            ax.set_facecolor(PANEL)
-            for sp in ax.spines.values(): 
-                sp.set_edgecolor(BORDER)
-                sp.set_linewidth(1.5)
-            ax.plot(strikes/S, np.array(ivs)*100, color=PURPLE, lw=3, marker='o', markersize=6)
-            ax.axvline(1.0, color=GRAY, lw=1.2, linestyle=":", alpha=0.7, label="ATM")
-            ax.axhline(iv*100, color=ACCENT, lw=1.2, linestyle="--", alpha=0.7, label=f"IV: {iv*100:.2f}%")
-            ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
-            sty(ax, "Volatility Smile", "Moneyness (K/S)", "IV (%)")
-            st.pyplot(fig_smile, use_container_width=True)
-            plt.close(fig_smile)
+            col_skew, col_term = st.columns(2)
+            
+            with col_skew:
+                # SKEW: Vol implicite vs Strike (Calls ET Puts)
+                strikes = np.linspace(S*0.7, S*1.3, 20)
+                iv_calls = []
+                iv_puts = []
+                
+                for strike in strikes:
+                    # Prix théoriques avec la vol calibrée
+                    call_price = bs(S, strike, T, r, iv, q, "call")
+                    put_price = bs(S, strike, T, r, iv, q, "put")
+                    
+                    # Recalibration de l'IV pour chaque strike
+                    iv_call = implied_volatility(call_price, S, strike, T, r, q, "call")
+                    iv_put = implied_volatility(put_price, S, strike, T, r, q, "put")
+                    
+                    iv_calls.append(iv_call if not np.isnan(iv_call) else None)
+                    iv_puts.append(iv_put if not np.isnan(iv_put) else None)
+                
+                fig_skew, ax = plt.subplots(figsize=(7, 5), facecolor=BG)
+                ax.set_facecolor(PANEL)
+                for sp in ax.spines.values(): 
+                    sp.set_edgecolor(BORDER)
+                    sp.set_linewidth(2)
+                
+                # Plot Calls
+                valid_calls = [(k/S, v*100) for k, v in zip(strikes, iv_calls) if v is not None]
+                if valid_calls:
+                    x_calls, y_calls = zip(*valid_calls)
+                    ax.plot(x_calls, y_calls, color=CYAN, lw=3, marker='o', markersize=6, label='Calls', alpha=0.9)
+                
+                # Plot Puts
+                valid_puts = [(k/S, v*100) for k, v in zip(strikes, iv_puts) if v is not None]
+                if valid_puts:
+                    x_puts, y_puts = zip(*valid_puts)
+                    ax.plot(x_puts, y_puts, color=PURPLE, lw=3, marker='s', markersize=6, label='Puts', alpha=0.9)
+                
+                ax.axvline(1.0, color=GRAY, lw=1.5, linestyle=":", alpha=0.7, label="ATM")
+                ax.axhline(iv*100, color=ACCENT, lw=1.5, linestyle="--", alpha=0.7, label=f"IV ref: {iv*100:.2f}%")
+                ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+                sty(ax, "Volatility Skew (Calls vs Puts)", "Moneyness (K/S)", "IV (%)")
+                st.pyplot(fig_skew, use_container_width=True)
+                plt.close(fig_skew)
+            
+            with col_term:
+                # TERM STRUCTURE: Vol implicite vs Maturité
+                maturities = np.linspace(max(T, 7/365), min(T*3, 1.0), 12)
+                term_iv_calls = []
+                term_iv_puts = []
+                
+                for mat in maturities:
+                    call_price = bs(S, K, mat, r, iv, q, "call")
+                    put_price = bs(S, K, mat, r, iv, q, "put")
+                    
+                    iv_call = implied_volatility(call_price, S, K, mat, r, q, "call")
+                    iv_put = implied_volatility(put_price, S, K, mat, r, q, "put")
+                    
+                    term_iv_calls.append(iv_call if not np.isnan(iv_call) else None)
+                    term_iv_puts.append(iv_put if not np.isnan(iv_put) else None)
+                
+                fig_term, ax = plt.subplots(figsize=(7, 5), facecolor=BG)
+                ax.set_facecolor(PANEL)
+                for sp in ax.spines.values(): 
+                    sp.set_edgecolor(BORDER)
+                    sp.set_linewidth(2)
+                
+                valid_term_calls = [(m*365, v*100) for m, v in zip(maturities, term_iv_calls) if v is not None]
+                if valid_term_calls:
+                    x_term_c, y_term_c = zip(*valid_term_calls)
+                    ax.plot(x_term_c, y_term_c, color=CYAN, lw=3, marker='o', markersize=6, label='Calls', alpha=0.9)
+                
+                valid_term_puts = [(m*365, v*100) for m, v in zip(maturities, term_iv_puts) if v is not None]
+                if valid_term_puts:
+                    x_term_p, y_term_p = zip(*valid_term_puts)
+                    ax.plot(x_term_p, y_term_p, color=PURPLE, lw=3, marker='s', markersize=6, label='Puts', alpha=0.9)
+                
+                ax.axvline(T*365, color=GRAY, lw=1.5, linestyle=":", alpha=0.7, label=f"Maturité: {T_day}j")
+                ax.axhline(iv*100, color=ACCENT, lw=1.5, linestyle="--", alpha=0.7)
+                ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+                sty(ax, "Term Structure", "Maturité (jours)", "IV (%)")
+                st.pyplot(fig_term, use_container_width=True)
+                plt.close(fig_term)
 
 # ═══ MODE: BACKTESTING ═══════════════════════════════════════════════════════
 
@@ -574,6 +734,7 @@ elif mode == "Backtesting":
                 results_df = backtest_strategy_cached(strategy, S, K, T, r, sigma, q, initial_capital, backtest_days, n_simulations)
             except Exception as e:
                 st.error(f"❌ Erreur backtest: {str(e)}")
+                st.info(f"Debug: {e}")
                 st.stop()
         
         mean_pnl = results_df['pnl'].mean()
@@ -582,11 +743,11 @@ elif mode == "Backtesting":
         win_rate = (results_df['pnl'] > 0).sum() / len(results_df) * 100
         max_gain = results_df['pnl'].max()
         max_loss = results_df['pnl'].min()
-        sharpe = mean_pnl / std_pnl if std_pnl > 0 else 0
+        sharpe = (mean_pnl / std_pnl * np.sqrt(252)) if std_pnl > 0 else 0
         
         st.markdown("### Statistiques de performance")
         c1, c2, c3, c4, c5, c6 = st.columns(6)
-        c1.metric("P&L Moyen", f"${mean_pnl:.2f}", delta=f"{mean_pnl/initial_capital*100:.1f}%")
+        c1.metric("P&L Moyen", f"${mean_pnl:.2f}", delta=f"{mean_pnl/abs(mean_pnl) if mean_pnl != 0 else 0:.1f}")
         c2.metric("P&L Médian", f"${median_pnl:.2f}")
         c3.metric("Win Rate", f"{win_rate:.1f}%")
         c4.metric("Max Gain", f"${max_gain:.2f}")
@@ -602,11 +763,11 @@ elif mode == "Backtesting":
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
-                sp.set_linewidth(1.5)
+                sp.set_linewidth(2)
             ax.hist(results_df['pnl'], bins=50, color=CYAN, alpha=0.7, edgecolor=CYAN, linewidth=0.5)
-            ax.axvline(mean_pnl, color=ACCENT, lw=2.5, linestyle="--", label=f"Moyenne: ${mean_pnl:.0f}")
-            ax.axvline(0, color=GRAY, lw=2, linestyle="-", alpha=0.8, label="Break-even")
-            ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+            ax.axvline(mean_pnl, color=ACCENT, lw=3, linestyle="--", label=f"Moyenne: ${mean_pnl:.0f}")
+            ax.axvline(0, color=GRAY, lw=2.5, linestyle="-", alpha=0.8, label="Break-even")
+            ax.legend(fontsize=10, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, f"Distribution P&L · {strategy.replace('_', ' ').title()}", "P&L ($)", "Fréquence")
             st.pyplot(fig_hist, use_container_width=True)
             plt.close(fig_hist)
@@ -616,11 +777,11 @@ elif mode == "Backtesting":
             ax.set_facecolor(PANEL)
             for sp in ax.spines.values(): 
                 sp.set_edgecolor(BORDER)
-                sp.set_linewidth(1.5)
-            ax.scatter(results_df['final_spot'], results_df['pnl'], alpha=0.6, s=25, color=PURPLE, edgecolors='white', linewidths=0.3)
-            ax.axhline(0, color=GRAY, lw=2, linestyle="-", alpha=0.8, label="Break-even")
-            ax.axvline(S, color=YELLOW, lw=2, linestyle="--", alpha=0.9, label=f"Spot initial: ${S:.0f}")
-            ax.legend(fontsize=9, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
+                sp.set_linewidth(2)
+            ax.scatter(results_df['final_spot'], results_df['pnl'], alpha=0.6, s=30, color=PURPLE, edgecolors='white', linewidths=0.5)
+            ax.axhline(0, color=GRAY, lw=2.5, linestyle="-", alpha=0.8, label="Break-even")
+            ax.axvline(S, color=YELLOW, lw=2.5, linestyle="--", alpha=0.9, label=f"Spot initial: ${S:.0f}")
+            ax.legend(fontsize=10, facecolor=PANEL, edgecolor=BORDER, labelcolor=TEXT)
             sty(ax, "P&L vs Spot Final", "Spot final ($)", "P&L ($)")
             st.pyplot(fig_spot, use_container_width=True)
             plt.close(fig_spot)
