@@ -1,4 +1,4 @@
-="""
+"""
 Options Pricer — Streamlit
 Compatible GitHub Codespaces / navigateur
 Lancer avec : streamlit run streamlit_bs_pricer.py
@@ -759,4 +759,3 @@ elif mode == "Backtesting":
             "Return (%)": [f"{results_df['return_pct'].quantile(p/100):.2f}%" for p in percentiles]
         }
         st.dataframe(pd.DataFrame(pct_data), use_container_width=True, hide_index=True)
-
