@@ -226,25 +226,31 @@ def legend_entry(color, label, linestyle="--"):
 
 def label_xaxis(ax, points):
     """
-    Add colored labels directly on the x-axis for key values.
+    Add colored boxed labels BELOW the x-axis for key values.
     points = list of (x_value, label_str, color)
+    Avoids overlapping with regular tick labels by using annotate in figure coords.
     """
-    existing = list(ax.get_xticks())
-    extra_xs = [p[0] for p in points]
-    all_ticks = sorted(set(existing + extra_xs))
-    ax.set_xticks(all_ticks)
-    tick_labels = []
-    color_map = {p[0]: (p[1], p[2]) for p in points}
-    for t in all_ticks:
-        if t in color_map:
-            tick_labels.append(color_map[t][0])
-        else:
-            tick_labels.append(f"{t:.0f}")
-    ax.set_xticklabels(tick_labels, fontsize=6.5)
-    for tick, t_val in zip(ax.xaxis.get_ticklabels(), all_ticks):
-        if t_val in color_map:
-            tick.set_color(color_map[t_val][1])
-            tick.set_fontweight("bold")
+    for (x_val, label, color) in points:
+        ax.annotate(
+            label,
+            xy=(x_val, ax.get_ylim()[0]),
+            xycoords="data",
+            xytext=(0, -22),
+            textcoords="offset points",
+            fontsize=6.0,
+            color=color,
+            fontfamily="monospace",
+            ha="center",
+            va="top",
+            bbox=dict(
+                boxstyle="round,pad=0.3",
+                facecolor="#000000",
+                edgecolor=color,
+                linewidth=0.8,
+                alpha=0.92,
+            ),
+            annotation_clip=False,
+        )
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 
@@ -476,6 +482,7 @@ elif st.session_state.page == "app":
                 (S,  f"S={S:.0f}",   "#9ca3af"),
             ])
             sty(ax,f"P&L  ·  {opt.upper()}","","P&L ($)")
+            fig.subplots_adjust(bottom=0.22)
             fig.tight_layout(pad=1.2); st.pyplot(fig,use_container_width=True); plt.close(fig)
 
         with col2:
@@ -617,6 +624,7 @@ elif st.session_state.page == "app":
                 legend_entry(GRAY, "BE $0.00", linestyle="-"),
             ], fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.85, loc="upper left")
             sty(ax,"P&L vs Final Spot","","P&L ($)")
+            fig_sc.subplots_adjust(bottom=0.22)
             fig_sc.tight_layout(pad=1.2); st.pyplot(fig_sc,use_container_width=True); plt.close(fig_sc)
 
         st.markdown("---"); st.markdown("### Percentiles")
