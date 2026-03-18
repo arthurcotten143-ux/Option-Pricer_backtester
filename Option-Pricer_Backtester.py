@@ -12,19 +12,11 @@ import streamlit as st
 import warnings
 warnings.filterwarnings("ignore")
 
-# ─── PAGE CONFIG ──────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Options Pricer",
-    page_icon="◈",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+st.set_page_config(page_title="Options Pricer", page_icon="◈", layout="wide", initial_sidebar_state="expanded")
 
-# ─── SESSION STATE ────────────────────────────────────────────────────────────
 if "page" not in st.session_state:
     st.session_state.page = "app"
 
-# ─── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
     .main { background-color: #000000 !important; }
@@ -39,8 +31,7 @@ st.markdown("""
     p, span, div, label, .stMarkdown { color: #ffffff !important; font-weight: normal !important; font-size: 0.72rem !important; }
     input[type="number"], input[type="text"], .stNumberInput input, .stTextInput input {
         background-color: #0a0a0a !important; color: #ffffff !important; border: 2px solid #4a9eff !important; }
-    .stSelectbox > div > div, select {
-        background-color: #0a0a0a !important; color: #ffffff !important; border: 2px solid #4a9eff !important; }
+    .stSelectbox > div > div, select { background-color: #0a0a0a !important; color: #ffffff !important; border: 2px solid #4a9eff !important; }
     .stSelectbox div[data-baseweb="select"] > div, .stSelectbox ul, .stSelectbox li,
     [role="listbox"], [role="option"] { background-color: #0a0a0a !important; color: #ffffff !important; }
     .stSelectbox li:hover, [role="option"]:hover { background-color: #1a1a1a !important; color: #4a9eff !important; }
@@ -60,8 +51,7 @@ st.markdown("""
                     border: 1px solid #4a9eff !important; padding: 6px !important; }
     .dataframe td { color: #ffffff !important; background-color: #000000 !important;
                     border: 1px solid #333333 !important; padding: 6px !important; }
-    .author-link { color: #888888 !important; font-size: 0.72rem; font-family: monospace;
-                   margin-top: -10px; margin-bottom: 15px; }
+    .author-link { color: #888888 !important; font-size: 0.72rem; font-family: monospace; margin-top: -10px; margin-bottom: 15px; }
     .author-link a { color: #4a9eff !important; text-decoration: none; }
     .author-link a:hover { color: #60a5fa !important; text-decoration: underline; }
     [data-testid="stSidebar"] .stButton > button {
@@ -72,14 +62,8 @@ st.markdown("""
     .formula-box {
         background-color: #0a0a0a; border: 1px solid #2a4a6b; border-left: 3px solid #4a9eff;
         border-radius: 6px; padding: 14px 18px; margin: 10px 0; font-family: monospace;
-        font-size: 0.85rem; color: #e5e7eb; line-height: 1.8;
-    }
-    .tag-green  { background:#052e16; color:#10b981; border:1px solid #10b981; border-radius:4px; padding:2px 7px; font-size:0.68rem; font-family:monospace; }
-    .tag-blue   { background:#0c1a2e; color:#4a9eff; border:1px solid #4a9eff; border-radius:4px; padding:2px 7px; font-size:0.68rem; font-family:monospace; }
-    .tag-purple { background:#1a0a2e; color:#8b5cf6; border:1px solid #8b5cf6; border-radius:4px; padding:2px 7px; font-size:0.68rem; font-family:monospace; }
-    .tag-yellow { background:#1c1200; color:#f59e0b; border:1px solid #f59e0b; border-radius:4px; padding:2px 7px; font-size:0.68rem; font-family:monospace; }
+        font-size: 0.85rem; color: #e5e7eb; line-height: 1.8; }
     .section-divider { border: none; border-top: 1px solid #1e2a38; margin: 28px 0; }
-    /* Markdown tables */
     table { border-collapse: collapse !important; width: 100% !important; background-color: #000000 !important; }
     thead tr { background-color: #0a0a0a !important; }
     thead th { color: #4a9eff !important; font-family: monospace !important; font-weight: normal !important;
@@ -93,7 +77,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ─── MATPLOTLIB STYLE ─────────────────────────────────────────────────────────
 plt.rcParams.update({
     "figure.facecolor": "#000000", "axes.facecolor": "#0a0a0a",
     "axes.edgecolor": "#4a9eff",   "axes.labelcolor": "#4a9eff",
@@ -191,75 +174,37 @@ def backtest_strategy_cached(strategy, S0, K, T, r, sigma, q, n_days, n_sims):
         rows.append({"final_spot":Se,"pnl":pnl,"return_pct":(pnl/S0)*100})
     return pd.DataFrame(rows)
 
-# ─── DELTA HEDGING ────────────────────────────────────────────────────────────
-
 @st.cache_data(ttl=300)
 def delta_hedge_simulation(S0, K, T, r, sigma, q, opt, n_days, n_paths, freq):
-    """
-    Simulate dynamic delta hedging of a long option position.
-    At each rebalancing step: adjust stock holding to -Delta (hedge).
-    Final P&L = option payoff + stock P&L + cash account (risk-free).
-    Residual P&L ≈ Gamma P&L (the cost/benefit of hedging imperfectly).
-    """
     np.random.seed(42)
     freq_map = {"Daily": 1, "Weekly": 5, "At expiry": n_days}
     rebal_every = freq_map.get(freq, 1)
-
     dt = T / n_days
-    hedge_pnls, unhedged_pnls, delta_paths, gamma_pnls = [], [], [], []
-
+    hedge_pnls, unhedged_pnls, delta_paths = [], [], []
+    entry_cost = bs(S0, K, T, r, sigma, q, opt)
     for _ in range(n_paths):
-        # Simulate full price path
         Z    = np.random.standard_normal(n_days)
-        logS = np.log(S0) + np.cumsum((r - q - 0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z)
-        path = np.concatenate([[S0], np.exp(logS)])  # length n_days+1
-
-        # Option entry cost
-        entry_cost = bs(S0, K, T, r, sigma, q, opt)
-
-        # Init hedge
-        cash       = -entry_cost   # paid for option
-        stock_pos  = 0.0           # shares held (will be set to -Delta)
-        deltas     = []
-
+        logS = np.log(S0) + np.cumsum((r-q-0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z)
+        path = np.concatenate([[S0], np.exp(logS)])
+        cash, stock_pos, deltas = -entry_cost, 0.0, []
         for i in range(n_days):
-            S_now    = path[i]
-            T_rem    = T - i * dt
-            if T_rem < 1e-8:
-                break
-            delta_now = greeks(S_now, K, T_rem, r, sigma, q, opt)["delta"]
-            deltas.append(delta_now)
-
-            # Rebalance only at specified frequency
+            S_now, T_rem = path[i], T - i*dt
+            if T_rem < 1e-8: break
+            d_now = greeks(S_now, K, T_rem, r, sigma, q, opt)["delta"]
+            deltas.append(d_now)
             if i % rebal_every == 0:
-                new_stock = -delta_now           # hedge: short Delta shares for long call
-                trade     = new_stock - stock_pos
-                cash     -= trade * S_now        # buy/sell stock at current price
+                new_stock = -d_now
+                cash -= (new_stock - stock_pos) * S_now
                 stock_pos = new_stock
-
-            # Accrue risk-free interest on cash daily
             cash *= np.exp(r * dt)
-
-        # At expiry
-        S_T      = path[-1]
-        payoff   = max(S_T - K, 0) if opt == "call" else max(K - S_T, 0)
-        cash    += stock_pos * S_T   # unwind stock position
-        cash    += payoff             # receive option payoff
-
-        hedge_pnl    = cash           # total hedged P&L
-        unhedged_pnl = payoff - entry_cost
-
-        hedge_pnls.append(hedge_pnl)
-        unhedged_pnls.append(unhedged_pnl)
+        S_T = path[-1]
+        payoff = max(S_T-K,0) if opt=="call" else max(K-S_T,0)
+        cash += stock_pos*S_T + payoff
+        hedge_pnls.append(cash)
+        unhedged_pnls.append(payoff - entry_cost)
         delta_paths.append(deltas)
-        gamma_pnls.append(hedge_pnl - unhedged_pnl * 0)   # residual = hedge P&L
-
-    return {
-        "hedge_pnls":    np.array(hedge_pnls),
-        "unhedged_pnls": np.array(unhedged_pnls),
-        "delta_paths":   delta_paths,
-        "entry_cost":    entry_cost,
-    }
+    return {"hedge_pnls": np.array(hedge_pnls), "unhedged_pnls": np.array(unhedged_pnls),
+            "delta_paths": delta_paths, "entry_cost": entry_cost}
 
 # ─── PLOT HELPERS ─────────────────────────────────────────────────────────────
 
@@ -272,58 +217,64 @@ def sty(ax, title, xl, yl):
     for sp in ax.spines.values(): sp.set_linewidth(0.6); sp.set_edgecolor("#2a4a6b")
     ax.set_axisbelow(True)
 
-def annotate_be(ax, val, ymin, color=GREEN):
-    ax.annotate(f"BE ${val:.2f}", xy=(val, ymin), fontsize=4.5, color=color,
-                fontfamily="monospace", ha="center", va="top", alpha=0.85)
+def vline(ax, x, color):
+    """Draw a clean vertical line — label shown on x-axis."""
+    ax.axvline(x, color=color, lw=0.6, linestyle="--", alpha=0.55)
 
-def vline(ax, x, label, color, ymin, ymax):
-    ax.axvline(x, color=color, lw=0.5, linestyle="--", alpha=0.6)
-    ax.annotate(label, xy=(x, ymin+(ymax-ymin)*0.04), fontsize=4.5, color=color,
-                fontfamily="monospace", ha="center", va="bottom", rotation=90, alpha=0.85)
+def legend_entry(color, label, linestyle="--"):
+    return plt.Line2D([0],[0], color=color, lw=1.0, linestyle=linestyle, label=label)
+
+def label_xaxis(ax, points):
+    """
+    Add colored labels directly on the x-axis for key values.
+    points = list of (x_value, label_str, color)
+    """
+    existing = list(ax.get_xticks())
+    extra_xs = [p[0] for p in points]
+    all_ticks = sorted(set(existing + extra_xs))
+    ax.set_xticks(all_ticks)
+    tick_labels = []
+    color_map = {p[0]: (p[1], p[2]) for p in points}
+    for t in all_ticks:
+        if t in color_map:
+            tick_labels.append(color_map[t][0])
+        else:
+            tick_labels.append(f"{t:.0f}")
+    ax.set_xticklabels(tick_labels, fontsize=6.5)
+    for tick, t_val in zip(ax.xaxis.get_ticklabels(), all_ticks):
+        if t_val in color_map:
+            tick.set_color(color_map[t_val][1])
+            tick.set_fontweight("bold")
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
     st.markdown("## ◈ OPTIONS PRICER")
     st.markdown("---")
-
-    # ── DOCS BUTTON ───────────────────────────────────────────────────────────
     if st.session_state.page == "app":
         if st.button("📐  Formula Reference", use_container_width=True):
-            st.session_state.page = "docs"
-            st.rerun()
+            st.session_state.page = "docs"; st.rerun()
     else:
         if st.button("◀  Back to App", use_container_width=True):
-            st.session_state.page = "app"
-            st.rerun()
-
+            st.session_state.page = "app"; st.rerun()
     st.markdown("---")
 
     if st.session_state.page == "app":
         st.markdown("### Mode")
         mode = st.selectbox("Select mode", ["Pricing", "Implied Volatility", "Backtesting"])
 
-        pricing_method = "Black-Scholes"
-        market_price   = 5.0
-        strategy       = "long_call"
-        backtest_days  = 30
-        n_simulations  = 1000
-        prem           = 0.0
-        n_sims         = 100000
-        n_steps        = 252
-        antithetic     = True
-        seed           = 42
+        pricing_method = "Black-Scholes"; market_price = 5.0; strategy = "long_call"
+        backtest_days = 30; n_simulations = 1000; prem = 0.0
+        n_sims = 100000; n_steps = 252; antithetic = True; seed = 42
 
         if mode == "Pricing":
-            st.markdown("---")
-            st.markdown("### Pricing model")
+            st.markdown("---"); st.markdown("### Pricing model")
             pricing_method = st.selectbox("Model", ["Black-Scholes", "Monte Carlo"])
 
-        st.markdown("---")
-        st.markdown("### Parameters")
+        st.markdown("---"); st.markdown("### Parameters")
         S     = st.number_input("Spot S ($)",           value=100.0, step=1.0)
         K     = st.number_input("Strike K ($)",         value=100.0, step=1.0)
-        T_day = st.number_input("Maturity (days)",      value=30,    step=1,   min_value=1)
+        T_day = st.number_input("Maturity (days)",      value=30,    step=1, min_value=1)
         r     = st.number_input("Risk-free rate r (%)", value=5.0,   step=0.1) / 100
         sigma = st.number_input("Volatility σ (%)",     value=20.0,  step=0.5) / 100
         q     = st.number_input("Dividend yield q (%)", value=0.0,   step=0.1) / 100
@@ -332,21 +283,18 @@ with st.sidebar:
         if mode == "Pricing":
             prem = st.number_input("Premium paid ($) [opt.]", value=0.0, step=0.01)
             if pricing_method == "Monte Carlo":
-                st.markdown("---")
-                st.markdown("### Monte Carlo settings")
+                st.markdown("---"); st.markdown("### Monte Carlo settings")
                 n_sims     = st.selectbox("Simulations", [10000,50000,100000,250000], index=2)
                 n_steps    = st.selectbox("Time steps",  [50,100,252], index=2)
                 antithetic = st.checkbox("Antithetic variates", value=True)
                 seed       = st.number_input("Seed", value=42, step=1)
 
         elif mode == "Implied Volatility":
-            st.markdown("---")
-            st.markdown("### Market price")
+            st.markdown("---"); st.markdown("### Market price")
             market_price = st.number_input("Observed price ($)", value=5.0, step=0.01, min_value=0.01)
 
         elif mode == "Backtesting":
-            st.markdown("---")
-            st.markdown("### Backtest settings")
+            st.markdown("---"); st.markdown("### Backtest settings")
             strategy = st.selectbox("Strategy",
                 ["long_call","long_put","covered_call","protective_put","straddle","strangle"],
                 format_func=lambda x: x.replace('_',' ').title())
@@ -370,7 +318,6 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 
 if st.session_state.page == "docs":
-
     st.markdown("# 📐 Formula Reference")
     st.markdown('<div class="author-link">by <a href="https://www.linkedin.com/in/arthurcotten/">Arthur Cotten</a> • <a href="https://github.com/arthurcotten">@arthurcotten</a></div>', unsafe_allow_html=True)
     st.markdown("---")
@@ -379,343 +326,77 @@ if st.session_state.page == "docs":
         "① Black-Scholes", "② Monte Carlo", "③ Implied Volatility", "④ Backtesting", "⑤ Delta Hedging"
     ])
 
-    # ── BLACK-SCHOLES ─────────────────────────────────────────────────────────
     with doc_tab1:
         st.markdown("## Black-Scholes Model")
-        st.markdown("""
-The Black-Scholes model (1973) provides a closed-form analytical solution to price European-style options.
-It assumes the underlying follows a **Geometric Brownian Motion (GBM)** with constant volatility and no arbitrage.
-""")
+        st.markdown("The Black-Scholes model (1973) provides a closed-form analytical solution to price European-style options. It assumes the underlying follows a **Geometric Brownian Motion (GBM)** with constant volatility and no arbitrage.")
         st.markdown("### Core Formula")
-        st.markdown('<div class="formula-box">'
-            '<b>Call price:</b>  C = S·e^(-qT)·N(d1) - K·e^(-rT)·N(d2)<br><br>'
-            '<b>Put price:</b>   P = K·e^(-rT)·N(-d2) - S·e^(-qT)·N(-d1)<br><br>'
-            '<b>d1</b> = [ ln(S/K) + (r - q + σ²/2)·T ] / (σ·√T)<br>'
-            '<b>d2</b> = d1 - σ·√T<br><br>'
-            'N(·) = cumulative standard normal distribution function'
-            '</div>', unsafe_allow_html=True)
-
+        st.markdown('<div class="formula-box"><b>Call price:</b>  C = S·e^(-qT)·N(d1) - K·e^(-rT)·N(d2)<br><br><b>Put price:</b>   P = K·e^(-rT)·N(-d2) - S·e^(-qT)·N(-d1)<br><br><b>d1</b> = [ ln(S/K) + (r - q + σ²/2)·T ] / (σ·√T)<br><b>d2</b> = d1 - σ·√T<br><br>N(·) = cumulative standard normal distribution function</div>', unsafe_allow_html=True)
         st.markdown("### Input Parameters")
-        st.markdown("""
-| Parameter | Name | Unit | Role |
-|---|---|---|---|
-| S | Spot price | $ | Current market price of the underlying asset |
-| K | Strike price | $ | Price at which the option can be exercised |
-| T | Time to maturity | years (= days/365) | Time remaining until expiration |
-| r | Risk-free rate | decimal (e.g. 0.05) | Continuously compounded risk-free interest rate |
-| σ | Volatility | decimal (e.g. 0.20) | Annualised standard deviation of log-returns — key driver of option price |
-| q | Dividend yield | decimal (e.g. 0.02) | Continuous dividend yield paid by the underlying |
-""")
-
+        st.markdown("| Parameter | Name | Unit | Role |\n|---|---|---|---|\n| S | Spot price | $ | Current market price of the underlying asset |\n| K | Strike price | $ | Price at which the option can be exercised |\n| T | Time to maturity | years (= days/365) | Time remaining until expiration |\n| r | Risk-free rate | decimal (e.g. 0.05) | Continuously compounded risk-free interest rate |\n| σ | Volatility | decimal (e.g. 0.20) | Annualised standard deviation of log-returns |\n| q | Dividend yield | decimal (e.g. 0.02) | Continuous dividend yield paid by the underlying |")
         st.markdown("### Output Metrics")
-        st.markdown("""
-| Metric | Formula / Definition | Interpretation |
-|---|---|---|
-| Price | C or P from above formula | Theoretical fair value of the option under BS assumptions |
-| Break-even | Call: K + premium paid / Put: K - premium paid | Spot level at which you neither gain nor lose at expiry |
-| Prob ITM | Call: N(d2) / Put: N(-d2) | Risk-neutral probability the option expires in-the-money |
-| Intrinsic Value | Call: max(S-K, 0) / Put: max(K-S, 0) | Value if exercised immediately — minimum floor of option price |
-| Time Value | Price - Intrinsic Value | Premium paid for optionality over time — decays as T→0 |
-| Moneyness | ITM if S>K (call) / ATM if S≈K / OTM otherwise | Position of the strike relative to the current spot |
-""")
-
+        st.markdown("| Metric | Formula / Definition | Interpretation |\n|---|---|---|\n| Price | C or P from above formula | Theoretical fair value of the option under BS assumptions |\n| Break-even | Call: K + premium / Put: K - premium | Spot level at which you neither gain nor lose at expiry |\n| Prob ITM | Call: N(d2) / Put: N(-d2) | Risk-neutral probability the option expires in-the-money |\n| Intrinsic Value | Call: max(S-K, 0) / Put: max(K-S, 0) | Value if exercised immediately |\n| Time Value | Price - Intrinsic Value | Premium for optionality — decays as T approaches 0 |\n| Moneyness | ITM / ATM / OTM | Position of the strike relative to current spot |")
         st.markdown("### Greeks")
-        st.markdown("""
-| Greek | Formula | Range | Interpretation |
-|---|---|---|---|
-| Delta (Δ) | Call: e^(-qT)·N(d1) / Put: -e^(-qT)·N(-d1) | [-1, 1] | Sensitivity of option price to a 1-unit move in the underlying. For example, an ATM option with Delta around 0.5 gains about 0.50 when the stock rises by 1. |
-| Gamma (Γ) | e^(-qT)·N'(d1) / (S·σ·√T) | > 0 | Rate of change of Delta. High Gamma near expiry means unstable hedge ratio |
-| Vega (ν) | S·e^(-qT)·N'(d1)·√T / 100 | > 0 | P&L change per +1% in volatility. Long options always have positive Vega |
-| Theta (Θ) | See full formula (negative, daily decay) | < 0 (long) | Daily P&L erosion from time alone. Accelerates near expiry (Theta burn) |
-| Rho (ρ) | Call: K·T·e^(-rT)·N(d2)/100 / Put: -K·T·e^(-rT)·N(-d2)/100 | Call > 0 / Put < 0 | P&L change per +1% in risk-free rate. Typically small vs other Greeks |
-""")
-
+        st.markdown("| Greek | Formula | Range | Interpretation |\n|---|---|---|---|\n| Delta (Δ) | Call: e^(-qT)·N(d1) / Put: -e^(-qT)·N(-d1) | [-1, 1] | Sensitivity to a 1-unit move in the underlying. ATM call ~0.5, so a 1 rise in S yields ~0.50 gain. |\n| Gamma (Γ) | e^(-qT)·N'(d1) / (S·σ·√T) | > 0 | Rate of change of Delta. High Gamma near expiry means unstable hedge ratio. |\n| Vega (ν) | S·e^(-qT)·N'(d1)·√T / 100 | > 0 | P&L change per +1% in volatility. Long options always have positive Vega. |\n| Theta (Θ) | See full formula (negative, daily decay) | < 0 (long) | Daily P&L erosion from time alone. Accelerates near expiry (Theta burn). |\n| Rho (ρ) | Call: K·T·e^(-rT)·N(d2)/100 | Call > 0 / Put < 0 | P&L change per +1% in risk-free rate. Typically small vs other Greeks. |")
         st.markdown("### P&L Chart — How to Read It")
-        st.markdown("""
-- **Blue curve** — P&L at expiry as a function of the final spot price
-- **Green zone** — scenarios where you make money at expiry
-- **Red zone** — scenarios where you lose money at expiry
-- **BE label** — exact break-even spot level (where the curve crosses zero)
-- **K label** — strike: for a call, profit starts here; for a put, profit ends here
-- **S label** — current spot: where the underlying is trading today
-
-> The chart shows **expiry P&L only** — it does not reflect mark-to-market value before expiry, which would be the BS price curve, not the kinked payoff.
-""")
-
+        st.markdown("- **Blue curve** — P&L at expiry as a function of the final spot price\n- **Green zone** — profit territory\n- **Red zone** — loss territory\n- **Legend** — K (strike), BE (break-even), S (current spot)\n\n> The chart shows **expiry P&L only** — it does not reflect mark-to-market value before expiry.")
         st.markdown("### Key Assumptions & Limitations")
-        st.markdown("""
-- Volatility is **constant** over the life of the option (not true in practice — see Vol Skew)
-- **No early exercise** — only valid for European options
-- **Log-normal** distribution of returns — underestimates fat tails / crash risk
-- **Continuous** hedging with no transaction costs
-- Risk-free rate is constant and known
-""")
+        st.markdown("- Volatility is **constant** (not true in practice)\n- **No early exercise** — European options only\n- **Log-normal** returns — underestimates fat tails\n- **Continuous** hedging, no transaction costs\n- Risk-free rate is constant and known")
 
-    # ── MONTE CARLO ───────────────────────────────────────────────────────────
     with doc_tab2:
         st.markdown("## Monte Carlo Simulation")
-        st.markdown("""
-Monte Carlo (MC) pricing simulates thousands of possible price paths for the underlying asset and averages the
-discounted payoffs. It is more flexible than Black-Scholes: it can handle path-dependent payoffs, stochastic
-volatility, and complex structures. Here it is applied to vanilla options as a validation and learning tool.
-""")
+        st.markdown("Monte Carlo (MC) pricing simulates thousands of possible price paths and averages the discounted payoffs. More flexible than Black-Scholes for path-dependent payoffs and complex structures.")
         st.markdown("### Price Path Simulation (GBM)")
-        st.markdown('<div class="formula-box">'
-            '<b>Discretised GBM (Euler scheme):</b><br><br>'
-            'S(t+dt) = S(t) · exp[ (r - q - σ²/2)·dt  +  σ·√dt·Z ]<br><br>'
-            'where  Z ~ N(0,1)  (standard normal random draw)<br><br>'
-            '<b>Terminal price after N steps:</b><br>'
-            'S(T) = S(0) · exp[ Σ { (r-q-σ²/2)·dt + σ·√dt·Zᵢ } ]  for i=1..N'
-            '</div>', unsafe_allow_html=True)
-
+        st.markdown('<div class="formula-box"><b>Discretised GBM (Euler scheme):</b><br><br>S(t+dt) = S(t) · exp[ (r - q - σ²/2)·dt  +  σ·√dt·Z ]<br><br>where  Z ~ N(0,1)  (standard normal random draw)<br><br><b>Terminal price after N steps:</b><br>S(T) = S(0) · exp[ Σ { (r-q-σ²/2)·dt + σ·√dt·Zᵢ } ]  for i=1..N</div>', unsafe_allow_html=True)
         st.markdown("### Option Price Estimate")
-        st.markdown('<div class="formula-box">'
-            '<b>Call payoff per path:</b>  max(S(T) - K, 0)<br>'
-            '<b>Put payoff per path:</b>   max(K - S(T), 0)<br><br>'
-            '<b>MC Price estimate:</b>  C ≈ e^(-rT) · (1/M) · Σ payoff(i)  for i=1..M paths<br><br>'
-            '<b>Standard Error:</b>  SE = e^(-rT) · std(payoffs) / √M<br><br>'
-            'As M → ∞, MC price → BS price (same model assumptions)'
-            '</div>', unsafe_allow_html=True)
-
+        st.markdown('<div class="formula-box"><b>Call payoff per path:</b>  max(S(T) - K, 0)<br><b>Put payoff per path:</b>   max(K - S(T), 0)<br><br><b>MC Price estimate:</b>  C ≈ e^(-rT) · (1/M) · Σ payoff(i)  for i=1..M paths<br><br><b>Standard Error:</b>  SE = e^(-rT) · std(payoffs) / √M<br><br>As M → ∞, MC price → BS price (same model assumptions)</div>', unsafe_allow_html=True)
         st.markdown("### Variance Reduction — Antithetic Variates")
-        st.markdown('<div class="formula-box">'
-            'For each random draw Z, also simulate -Z.<br>'
-            'This creates pairs of negatively correlated paths, reducing variance of the estimator<br>'
-            'without increasing the number of model evaluations.<br><br>'
-            'Effective sample size doubles with minimal computational overhead.'
-            '</div>', unsafe_allow_html=True)
-
+        st.markdown('<div class="formula-box">For each random draw Z, also simulate -Z.<br>This creates pairs of negatively correlated paths, reducing variance of the estimator<br>without increasing the number of model evaluations.<br><br>Effective sample size doubles with minimal computational overhead.</div>', unsafe_allow_html=True)
         st.markdown("### MC-Specific Settings")
-        st.markdown("""
-| Setting | Effect | Recommended |
-|---|---|---|
-| Simulations (M) | More paths → lower Standard Error → more accurate price. SE ∝ 1/√M | 100,000+ |
-| Time steps (N) | More steps → finer discretisation of the path. 252 = daily steps over 1 year | 252 (daily) |
-| Antithetic variates | Halves variance of the estimator. Always recommended unless benchmarking | On |
-| Seed | Fixes the random number sequence for reproducibility | Any fixed integer |
-""")
-
+        st.markdown("| Setting | Effect | Recommended |\n|---|---|---|\n| Simulations (M) | More paths → lower SE → more accurate price. SE ∝ 1/√M | 100,000+ |\n| Time steps (N) | Finer discretisation. 252 = daily steps over 1 year | 252 (daily) |\n| Antithetic variates | Halves variance of the estimator | On |\n| Seed | Fixes random sequence for reproducibility | Any fixed integer |")
         st.markdown("### Output — Distribution Chart")
-        st.markdown("""
-The histogram displays the **distribution of simulated terminal prices S(T)** across all M paths.
+        st.markdown("The histogram shows the **distribution of simulated terminal prices S(T)**.\n- **Shape** — log-normal bell curve centred around the forward price\n- **Width** — increases with σ and T\n- **K line** — shows how many paths finish in-the-money")
 
-- **Shape** — log-normal bell curve centred around the forward price F = S·e^((r-q)T)
-- **Width** — increases with σ and T: higher volatility = fatter, wider distribution
-- **K line** — shows how many paths finish in-the-money (right of K for calls, left for puts)
-- **Useful insight** — visualises the probability mass in/out of the money and the tail risk
-""")
-
-    # ── IMPLIED VOLATILITY ────────────────────────────────────────────────────
     with doc_tab3:
         st.markdown("## Implied Volatility Calibration")
-        st.markdown("""
-Implied Volatility (IV) is the volatility value σ* that, when plugged into the Black-Scholes formula,
-reproduces the observed market price of an option. It is the market's forward-looking estimate of
-uncertainty — not a historical measure.
-""")
+        st.markdown("Implied Volatility (IV) is the volatility value σ* that, when plugged into Black-Scholes, reproduces the observed market price. It is the market's forward-looking estimate of uncertainty.")
         st.markdown("### Calibration Problem")
-        st.markdown('<div class="formula-box">'
-            '<b>Find σ* such that:</b><br><br>'
-            'BS(S, K, T, r, σ*, q) = C_market<br><br>'
-            'There is no closed-form inverse of BS with respect to σ.<br>'
-            'This equation is solved numerically using <b>Brent\'s root-finding method</b>:<br>'
-            '→ Bracket: σ ∈ [0.001, 5.0]  (0.1% to 500% vol)<br>'
-            '→ Convergence: typically < 100 iterations<br>'
-            '→ Returns NaN if no solution exists (e.g. market price < intrinsic value)'
-            '</div>', unsafe_allow_html=True)
-
+        st.markdown('<div class="formula-box"><b>Find σ* such that:</b><br><br>BS(S, K, T, r, σ*, q) = C_market<br><br>No closed-form inverse exists. Solved numerically using <b>Brent\'s root-finding method</b>:<br>→ Bracket: σ ∈ [0.001, 5.0]<br>→ Convergence: typically &lt; 100 iterations<br>→ Returns NaN if no solution exists</div>', unsafe_allow_html=True)
         st.markdown("### Output Metrics")
-        st.markdown("""
-| Metric | Meaning |
-|---|---|
-| Implied Vol | σ* — the volatility implied by the observed market price |
-| Market price | The option price as traded/quoted in the market |
-| Theoretical price | BS price recalculated using σ* — should equal market price (sanity check) |
-| Vega | Sensitivity of option price to a +1% change in σ* — measures IV risk |
-""")
-
+        st.markdown("| Metric | Meaning |\n|---|---|\n| Implied Vol | σ* — volatility implied by the market price |\n| Market price | The option price as traded/quoted |\n| Theoretical price | BS price using σ* — should equal market price |\n| Vega | Sensitivity to a +1% change in σ* |")
         st.markdown("### Volatility Skew Chart")
-        st.markdown("""
-Plots IV against **moneyness** (K/S) for both calls and puts at the same maturity.
-
-- **Flat line** — Black-Scholes world: constant IV across all strikes (never observed in practice)
-- **Downward slope (left skew)** — typical for equity markets: OTM puts are expensive (crash insurance demand), OTM calls are cheap. This is called the **put skew** or **volatility smirk**
-- **Smile** — IV is elevated for both OTM puts and OTM calls, common in FX and commodity markets
-- **ATM line** — the calibrated IV for your input strike. All other strikes are rescaled from this point
-
-> In this tool the skew is synthetic — it recalibrates IV for each strike using the same input σ. It illustrates the mechanics of the skew, not real market data.
-""")
-
+        st.markdown("Plots IV against **moneyness** (K/S) for calls and puts.\n- **Flat** — BS world: constant IV (never observed in practice)\n- **Downward slope** — typical equity put skew (crash insurance demand)\n- **Smile** — elevated OTM IV on both sides, common in FX\n\n> Skew here is synthetic — illustrates mechanics, not real market data.")
         st.markdown("### Term Structure Chart")
-        st.markdown("""
-Plots IV against **maturity** for a fixed strike.
+        st.markdown("Plots IV against **maturity** for a fixed strike.\n- **Upward sloping** — calm markets, longer-dated options carry more premium\n- **Inverted** — short-term stress or upcoming event (earnings, central bank)\n- **Flat** — uniform uncertainty across maturities")
 
-- **Upward sloping (contango)** — typical in calm markets: longer-dated options carry more uncertainty premium
-- **Inverted (backwardation)** — near-term IV is elevated vs long-term, signals short-term stress or upcoming event (earnings, election, central bank)
-- **Flat** — market pricing uniform uncertainty across maturities
-
-> Same synthetic rescaling applies here. The term structure reflects how volatility changes with time to expiry, holding the strike fixed.
-""")
-
-    # ── BACKTESTING ───────────────────────────────────────────────────────────
     with doc_tab4:
         st.markdown("## Strategy Backtesting")
-        st.markdown("""
-The backtester simulates M Monte Carlo price paths and computes the **realised P&L** of a given options strategy
-on each path. It provides a statistical view of strategy performance: win rate, distribution of outcomes, tail risk.
-""")
+        st.markdown("The backtester simulates M Monte Carlo paths and computes the **realised P&L** of a given strategy on each path.")
         st.markdown("### Path Generation")
-        st.markdown('<div class="formula-box">'
-            'Same GBM discretisation as Monte Carlo pricing.<br>'
-            'M paths of length N days are simulated. Only the <b>terminal price S(T)</b> is used for P&L.<br><br>'
-            'For each path:  P&L = Payoff at expiry - Entry cost at inception'
-            '</div>', unsafe_allow_html=True)
-
+        st.markdown('<div class="formula-box">Same GBM discretisation as Monte Carlo pricing.<br>M paths of length N days are simulated. Only the <b>terminal price S(T)</b> is used for P&L.<br><br>For each path:  P&L = Payoff at expiry - Entry cost at inception</div>', unsafe_allow_html=True)
         st.markdown("### Strategy P&L Formulas")
-        st.markdown("""
-| Strategy | P&L Formula | Max Gain | Max Loss | Breakeven |
-|---|---|---|---|---|
-| Long Call | max(S(T)-K, 0) - C₀ | Unlimited | Premium C₀ | K + C₀ |
-| Long Put | max(K-S(T), 0) - P₀ | K - premium | Premium P₀ | K - P₀ |
-| Covered Call | (S(T)-S₀) + C₀ - max(S(T)-K, 0) | C₀ (capped at K) | Stock → 0 | S₀ - C₀ |
-| Protective Put | (S(T)-S₀) - P₀ + max(K-S(T), 0) | Unlimited | Premium P₀ | S₀ + P₀ |
-| Straddle | max(S(T)-K,0) + max(K-S(T),0) - C₀ - P₀ | Unlimited | C₀ + P₀ | K ± (C₀+P₀) |
-| Strangle | max(S(T)-Kc,0) + max(Kp-S(T),0) - Cc - Pp | Unlimited | Cc + Pp | Kc+premium or Kp-premium |
-""")
-
+        st.markdown("| Strategy | P&L Formula | Max Gain | Max Loss | Breakeven |\n|---|---|---|---|---|\n| Long Call | max(S(T)-K, 0) - C₀ | Unlimited | C₀ | K + C₀ |\n| Long Put | max(K-S(T), 0) - P₀ | K - premium | P₀ | K - P₀ |\n| Covered Call | (S(T)-S₀) + C₀ - max(S(T)-K, 0) | C₀ capped | Stock → 0 | S₀ - C₀ |\n| Protective Put | (S(T)-S₀) - P₀ + max(K-S(T), 0) | Unlimited | P₀ | S₀ + P₀ |\n| Straddle | max(S(T)-K,0) + max(K-S(T),0) - C₀ - P₀ | Unlimited | C₀+P₀ | K ± (C₀+P₀) |\n| Strangle | max(S(T)-Kc,0) + max(Kp-S(T),0) - Cc - Pp | Unlimited | Cc+Pp | Kc+prem or Kp-prem |")
         st.markdown("### Output Metrics")
-        st.markdown("""
-| Metric | Formula | Interpretation |
-|---|---|---|
-| Avg P&L | Mean of all path P&Ls | Expected value of the strategy under GBM — positive does not mean risk-free |
-| Median P&L | 50th percentile of P&L distribution | More robust than mean when distribution is skewed |
-| Win Rate | % of paths with P&L > 0 | How often the strategy expires in profit — high WR ≠ good strategy |
-| Max Gain | max(P&L across all paths) | Best-case scenario across simulations |
-| Max Loss | min(P&L across all paths) | Worst-case scenario — key metric for risk management |
-| Sharpe | Avg P&L / Std(P&L) × √252 | Annualised risk-adjusted return. >1 = good, >2 = strong, <0 = destroys value |
-""")
-
-        st.markdown("### P&L Distribution Chart — How to Read It")
-        st.markdown("""
-- **Green bars** — scenarios where the strategy expired profitable
-- **Red bars** — scenarios where the strategy expired at a loss
-- **Avg line (blue dashed)** — expected P&L across all simulations
-- **BE line (grey)** — P&L = 0; divides winners from losers
-- **Shape of distribution** — skewed right = most losses are small, few large wins (e.g. long call). Skewed left = most wins are small, few large losses (e.g. covered call, short option)
-""")
-
-        st.markdown("### P&L vs Final Spot Chart — How to Read It")
-        st.markdown("""
-- **X-axis** — final spot price at expiry across all simulated paths
-- **Y-axis** — realised P&L for that path
-- **Green dots** — profitable outcomes; **purple dots** — loss outcomes
-- **S0 line (yellow)** — starting spot, separates paths that moved up vs down
-- **K line (grey)** — strike level: for a call, all green dots should be to the right of K (where S(T) > K)
-- **BE line** — P&L = 0 horizontal; allows you to visually read the breakeven spot
-- **Shape** — reveals the payoff profile visually. A covered call will show a flat cap at the top (profit capped at K); a long call will show a straight diagonal rising slope above K
-""")
-
+        st.markdown("| Metric | Formula | Interpretation |\n|---|---|---|\n| Avg P&L | Mean of all path P&Ls | Expected value under GBM |\n| Median P&L | 50th percentile | More robust than mean when skewed |\n| Win Rate | % of paths with P&L > 0 | High WR does not mean good strategy |\n| Max Gain | max(P&L) | Best-case scenario |\n| Max Loss | min(P&L) | Worst-case — key for risk management |\n| Sharpe | Avg / Std × √252 | Annualised risk-adjusted return |")
         st.markdown("### Percentile Table")
-        st.markdown("""
-| Percentile | Meaning |
-|---|---|
-| 5% | Worst 5% of outcomes — tail risk / near worst-case |
-| 25% | Lower quartile — typical bad outcome |
-| 50% | Median outcome — most representative central scenario |
-| 75% | Upper quartile — typical good outcome |
-| 95% | Best 5% of outcomes — near best-case |
+        st.markdown("| Percentile | Meaning |\n|---|---|\n| 5% | Tail risk / near worst-case |\n| 25% | Typical bad outcome |\n| 50% | Median — most representative |\n| 75% | Typical good outcome |\n| 95% | Near best-case |\n\n> High Win Rate with very negative 5th percentile = **short-vol profile** (win often, lose big).")
 
-> A strategy with a high Win Rate but a very negative 5th percentile is a **short-volatility profile** — you win often but when you lose, you lose big (e.g. short straddle equivalent).
-""")
-
-# ══════════════════════════════════════════════════════════════════════════════
-    # ── DELTA HEDGING DOC ─────────────────────────────────────────────────────
     with doc_tab5:
         st.markdown("## Delta Hedging")
-        st.markdown("""
-Delta hedging is the core risk management technique used by options market makers.
-The goal is to eliminate **directional risk (Delta)** by continuously adjusting a stock position,
-so that the portfolio P&L depends only on **Gamma** and **Vega** — not on which way the market moves.
-""")
+        st.markdown("Delta hedging eliminates **directional risk** by continuously adjusting a stock position so that portfolio P&L depends only on **Gamma** and **Vega**.")
         st.markdown("### The Concept")
-        st.markdown('<div class="formula-box">'
-            '<b>Long call position:</b>  Delta > 0  (gains when S rises)<br><br>'
-            '<b>To hedge:</b>  Short Delta shares of stock<br>'
-            '<b>Net portfolio Delta</b> = option Delta + stock Delta = Δ - Δ = 0<br><br>'
-            '<b>Problem:</b>  Delta changes as S moves (Gamma effect)<br>'
-            '<b>Solution:</b>  Rebalance the stock position continuously (or at discrete intervals)<br><br>'
-            '<b>Cost of hedging:</b>  Each rebalance = buy high / sell low when Gamma > 0<br>'
-            'This hedging cost = Theta decay of the option (no free lunch)'
-            '</div>', unsafe_allow_html=True)
-
-        st.markdown("### P&L Attribution of a Delta-Hedged Portfolio")
-        st.markdown('<div class="formula-box">'
-            '<b>Daily P&L of hedged portfolio (Taylor expansion):</b><br><br>'
-            'P&L ≈  ½ · Γ · (ΔS)²  +  ν · Δσ  +  Θ · Δt<br><br>'
-            'where:<br>'
-            '  Γ · (ΔS)²/2  =  Gamma P&L  (realised vol benefit)<br>'
-            '  ν · Δσ        =  Vega P&L   (change in implied vol)<br>'
-            '  Θ · Δt        =  Theta decay (time cost — always negative for long options)<br><br>'
-            '<b>Key insight:</b>  If realised vol > implied vol → Gamma P&L > Theta cost → hedging is profitable<br>'
-            'If realised vol < implied vol → Gamma P&L < Theta cost → hedging loses money'
-            '</div>', unsafe_allow_html=True)
-
+        st.markdown('<div class="formula-box"><b>Long call:</b>  Delta > 0  (gains when S rises)<br><b>Hedge:</b>  Short Delta shares of stock<br><b>Net Delta</b> = Δ_option - Δ_stock = 0<br><br><b>Problem:</b>  Delta changes as S moves (Gamma effect)<br><b>Solution:</b>  Rebalance at discrete intervals<br><br><b>Cost of hedging:</b>  Buy high / sell low when Gamma > 0<br>This cost = Theta decay of the option (no free lunch)</div>', unsafe_allow_html=True)
+        st.markdown("### P&L Attribution")
+        st.markdown('<div class="formula-box"><b>Daily P&L of delta-hedged portfolio:</b><br><br>P&L ≈  ½ · Γ · (ΔS)²  +  ν · Δσ  +  Θ · Δt<br><br>Γ · (ΔS)²/2  =  Gamma P&L  (realised vol benefit)<br>ν · Δσ        =  Vega P&L   (change in implied vol)<br>Θ · Δt        =  Theta decay (always negative for long options)<br><br><b>Key:</b>  realised vol > implied vol → Gamma P&L > Theta cost → profitable hedge</div>', unsafe_allow_html=True)
         st.markdown("### Simulation Logic")
-        st.markdown("""
-| Step | Action |
-|---|---|
-| t = 0 | Buy option for C₀. Set stock position = -Δ₀ (short Delta shares). Cash = -C₀ + Δ₀·S₀ |
-| t = 1..N-1 | At each rebalancing step: compute new Δₜ, adjust stock position, debit/credit cash. Accrue risk-free interest on cash. |
-| t = N | Receive option payoff. Unwind stock at Sₙ. Final P&L = cash + stock value + payoff |
-""")
-
+        st.markdown("| Step | Action |\n|---|---|\n| t = 0 | Buy option for C₀. Set stock = -Δ₀. Cash = -C₀ + Δ₀·S₀ |\n| t = 1..N-1 | Rebalance stock to -Δₜ. Adjust cash. Accrue risk-free interest. |\n| t = N | Receive payoff. Unwind stock at S(T). Final P&L = cash + stock + payoff |")
         st.markdown("### Output Metrics")
-        st.markdown("""
-| Metric | Meaning |
-|---|---|
-| Avg Hedged P&L | Should be near zero if vol assumptions hold. Positive if realised vol > implied vol. |
-| Avg Unhedged P&L | Raw directional P&L without any hedge |
-| Hedge Std Dev | Dispersion of hedged P&L — lower = better hedge quality |
-| Hedge Win Rate | % of paths where hedging generated positive P&L |
-| Entry Cost | BS price paid at inception |
-""")
-
-        st.markdown("### Charts")
-        st.markdown("""
-**P&L Distribution — Hedged vs Unhedged**
-- Purple = unhedged P&L distribution (wide, directional)
-- Cyan = delta-hedged P&L distribution (should be narrow, centred near 0)
-- The tighter the hedged distribution, the more effective the hedge
-- Residual spread = hedging error from discrete rebalancing + vol mismatch
-
-**Delta Evolution Over Time**
-- Each cyan line = Delta path on one simulated price path
-- Yellow line = average Delta across all paths
-- Delta starts near 0.5 for ATM options, drifts toward 0 (OTM) or 1 (ITM) as time passes
-- Near expiry: Delta collapses rapidly — Gamma spikes — hedging becomes very costly
-""")
-
-        st.markdown("### Rebalancing Frequency — Practical Implications")
-        st.markdown("""
-| Frequency | Hedging Error | Transaction Cost | Used by |
-|---|---|---|---|
-| Continuous | Zero (theoretical) | Infinite | Textbooks only |
-| Daily | Very low | Low-moderate | Equity options desks |
-| Weekly | Moderate | Low | Some structured product desks |
-| At expiry | Maximum (= unhedged) | None | No hedge |
-
-> In practice, desks hedge based on **Delta bands** (e.g. rebalance when Delta moves by 0.05)
-> rather than fixed time intervals — this balances hedging error against transaction costs.
-""")
-
+        st.markdown("| Metric | Meaning |\n|---|---|\n| Avg Hedged P&L | Should be near zero if vol assumptions hold |\n| Avg Unhedged P&L | Raw directional P&L without hedge |\n| Hedge Std Dev | Lower = better hedge quality |\n| Hedge Win Rate | % of paths where hedging was profitable |\n| Entry Cost | BS price paid at inception |")
+        st.markdown("### Charts — How to Read Them")
+        st.markdown("**P&L Distribution — Hedged vs Unhedged**\n- Purple = unhedged (wide, directional)\n- Cyan = delta-hedged (should be narrow, centred near 0)\n- Tighter hedged distribution = more effective hedge\n\n**Delta Evolution Over Time**\n- Cyan lines = individual Delta paths\n- Yellow = average Delta across all paths\n- ATM options start near 0.5, drift toward 0 (OTM) or 1 (ITM) over time\n- Near expiry: Delta collapses fast — Gamma spikes — hedging becomes costly")
+        st.markdown("### Rebalancing Frequency")
+        st.markdown("| Frequency | Hedging Error | Transaction Cost | Used by |\n|---|---|---|---|\n| Continuous | Zero (theoretical) | Infinite | Textbooks only |\n| Daily | Very low | Low-moderate | Equity options desks |\n| Weekly | Moderate | Low | Some structured product desks |\n| At expiry | Maximum (= unhedged) | None | No hedge |\n\n> In practice, desks hedge on **Delta bands** rather than fixed intervals.")
         st.markdown("### Why This Matters")
-        st.markdown("""
-- Market makers **buy/sell options** and immediately delta-hedge to isolate Vega and Gamma exposure
-- The P&L of a market maker comes from the **spread between implied vol (sold) and realised vol (hedged)**
-- A trader long Gamma wants **large spot moves** (high realised vol) to offset Theta decay
-- A trader short Gamma (e.g. sold a straddle) wants **low realised vol** — spot stays still
-- Understanding this is fundamental for any derivatives trading or structuring role
-""")
+        st.markdown("- Market makers delta-hedge immediately to isolate **Vega and Gamma** exposure\n- P&L comes from the spread between **implied vol sold** and **realised vol hedged**\n- Long Gamma = wants large spot moves (high realised vol)\n- Short Gamma = wants spot to stay still (low realised vol)\n- Fundamental for any derivatives trading or structuring role")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: APP
@@ -785,17 +466,26 @@ elif st.session_state.page == "app":
             ax.fill_between(Sr,pnl,0,where=pnl<0, alpha=0.12,color=RED,  zorder=1)
             ax.plot(Sr,pnl,color=ACCENT,lw=1.2,zorder=3)
             ax.axhline(0,color=GRAY,lw=0.5,alpha=0.5,zorder=2)
-            vline(ax,K, f"K  ${K:.0f}",   YELLOW,    ym-yp,yM)
-            vline(ax,be,f"BE  ${be:.2f}", GREEN,     ym-yp,yM)
-            vline(ax,S, f"S  ${S:.0f}",   "#9ca3af", ym-yp,yM)
-            ax.set_ylim(ym-yp*1.8,yM+yp); annotate_be(ax,be,ym-yp*1.6)
-            sty(ax,f"P&L  ·  {opt.upper()}","Spot ($)","P&L ($)")
+            vline(ax, K,  YELLOW)
+            vline(ax, be, GREEN)
+            vline(ax, S,  "#9ca3af")
+            ax.set_ylim(ym-yp*0.8, yM+yp)
+            label_xaxis(ax, [
+                (K,  f"K={K:.0f}",   YELLOW),
+                (be, f"BE={be:.2f}", GREEN),
+                (S,  f"S={S:.0f}",   "#9ca3af"),
+            ])
+            sty(ax,f"P&L  ·  {opt.upper()}","","P&L ($)")
             fig.tight_layout(pad=1.2); st.pyplot(fig,use_container_width=True); plt.close(fig)
+
         with col2:
             if pricing_method=="Monte Carlo" and mc_paths is not None:
-                fig2,ax2=plt.subplots(figsize=(3.1,3.2),facecolor=BG); ax2.set_facecolor(PANEL)
+                fig2,ax2=plt.subplots(figsize=(3.1,2.4),facecolor=BG); ax2.set_facecolor(PANEL)
                 ax2.hist(mc_paths,bins=34,color=CYAN,alpha=0.6,edgecolor="none")
-                yh=ax2.get_ylim()[1]; vline(ax2,K,f"K  ${K:.0f}",YELLOW,0,yh)
+                yh=ax2.get_ylim()[1]
+                vline(ax2, K, YELLOW)
+                ax2.legend(handles=[legend_entry(YELLOW,f"K ${K:.0f}")],
+                           fontsize=6.5,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.85,loc="upper left")
                 sty(ax2,"Distribution  S(T)","Terminal price ($)","Freq")
                 fig2.tight_layout(pad=1.2); st.pyplot(fig2,use_container_width=True); plt.close(fig2)
 
@@ -843,90 +533,37 @@ elif st.session_state.page == "app":
 
         # ── INTERNAL VALIDATORS ───────────────────────────────────────────────
         val_errors, val_warnings, val_ok = [], [], []
-
-        # 1. Put-call parity check
-        call_p = bs(S, K, T, r, sigma, q, "call")
-        put_p  = bs(S, K, T, r, sigma, q, "put")
-        pcp_lhs = call_p - put_p
-        pcp_rhs = S * np.exp(-q*T) - K * np.exp(-r*T)
-        pcp_err = abs(pcp_lhs - pcp_rhs)
-        if pcp_err < 1e-6:
-            val_ok.append(f"Put-Call Parity ✓  (error = {pcp_err:.2e})")
-        else:
-            val_errors.append(f"Put-Call Parity violation: error = {pcp_err:.4f}")
-
-        # 2. Delta bounds
-        g_check = greeks(S, K, T, r, sigma, q, "call")
-        if 0 <= g_check["delta"] <= 1:
-            val_ok.append(f"Call Delta in [0,1] ✓  ({g_check['delta']:.4f})")
-        else:
-            val_errors.append(f"Call Delta out of bounds: {g_check['delta']:.4f}")
-
-        # 3. Option price >= intrinsic value
-        intr_check = max(S - K, 0)
-        if call_p >= intr_check - 1e-6:
-            val_ok.append(f"Call price >= intrinsic ✓  (${call_p:.4f} >= ${intr_check:.4f})")
-        else:
-            val_errors.append(f"Call price below intrinsic: ${call_p:.4f} < ${intr_check:.4f}")
-
-        # 4. Time value should be positive when OTM/ATM
+        call_p = bs(S,K,T,r,sigma,q,"call"); put_p = bs(S,K,T,r,sigma,q,"put")
+        pcp_err = abs((call_p-put_p) - (S*np.exp(-q*T)-K*np.exp(-r*T)))
+        if pcp_err < 1e-6: val_ok.append(f"Put-Call Parity ✓  (error = {pcp_err:.2e})")
+        else: val_errors.append(f"Put-Call Parity violation: error = {pcp_err:.4f}")
+        g_check = greeks(S,K,T,r,sigma,q,"call")
+        if 0 <= g_check["delta"] <= 1: val_ok.append(f"Call Delta in [0,1] ✓  ({g_check['delta']:.4f})")
+        else: val_errors.append(f"Call Delta out of bounds: {g_check['delta']:.4f}")
+        intr_check = max(S-K,0)
+        if call_p >= intr_check-1e-6: val_ok.append(f"Call price >= intrinsic ✓  (${call_p:.4f} >= ${intr_check:.4f})")
+        else: val_errors.append(f"Call price below intrinsic: ${call_p:.4f} < ${intr_check:.4f}")
         tv_check = call_p - intr_check
-        if tv_check >= 0:
-            val_ok.append(f"Time value >= 0 ✓  (${tv_check:.4f})")
-        else:
-            val_errors.append(f"Negative time value: ${tv_check:.4f}")
+        if tv_check >= 0: val_ok.append(f"Time value >= 0 ✓  (${tv_check:.4f})")
+        else: val_errors.append(f"Negative time value: ${tv_check:.4f}")
+        if g_check["gamma"] > 0: val_ok.append(f"Gamma > 0 ✓  ({g_check['gamma']:.6f})")
+        else: val_errors.append(f"Gamma <= 0: {g_check['gamma']:.6f}")
+        if g_check["theta"] < 0: val_ok.append(f"Theta < 0 ✓  ({g_check['theta']:.5f} /day)")
+        else: val_warnings.append(f"Theta positive for long option: {g_check['theta']:.5f}")
+        if sigma <= 0: val_errors.append("Volatility must be > 0")
+        elif sigma > 2.0: val_warnings.append(f"Very high volatility: {sigma*100:.0f}% — results may be unreliable")
+        if T <= 0: val_errors.append("Maturity must be > 0")
+        if S <= 0 or K <= 0: val_errors.append("Spot and Strike must be > 0")
 
-        # 5. Gamma > 0
-        if g_check["gamma"] > 0:
-            val_ok.append(f"Gamma > 0 ✓  ({g_check['gamma']:.6f})")
-        else:
-            val_errors.append(f"Gamma <= 0: {g_check['gamma']:.6f}")
-
-        # 6. Theta < 0 for long option
-        if g_check["theta"] < 0:
-            val_ok.append(f"Theta < 0 ✓  ({g_check['theta']:.5f}  /day)")
-        else:
-            val_warnings.append(f"Theta positive for long option: {g_check['theta']:.5f}")
-
-        # 7. Input sanity
-        if sigma <= 0:
-            val_errors.append("Volatility must be > 0")
-        elif sigma > 2.0:
-            val_warnings.append(f"Very high volatility: {sigma*100:.0f}% — results may be unreliable")
-        if T <= 0:
-            val_errors.append("Maturity must be > 0")
-        if S <= 0 or K <= 0:
-            val_errors.append("Spot and Strike must be > 0")
-
-        # Display validators
         with st.expander("✅ Internal Validators", expanded=False):
-            if val_errors:
-                for e in val_errors:
-                    st.error(f"❌  {e}")
-            if val_warnings:
-                for w in val_warnings:
-                    st.warning(f"⚠️  {w}")
-            for o in val_ok:
-                st.success(f"✓  {o}")
-            st.markdown(f"""
-**Summary:**  {len(val_ok)} checks passed · {len(val_warnings)} warnings · {len(val_errors)} errors
-
-| Check | Description |
-|---|---|
-| Put-Call Parity | C - P = S·e^(-qT) - K·e^(-rT) — fundamental no-arbitrage identity |
-| Delta bounds | Call Delta must be in [0,1], Put Delta in [-1,0] |
-| Price >= intrinsic | Option can never be worth less than its exercise value |
-| Time value >= 0 | Intrinsic is the floor — any premium above it is time value |
-| Gamma > 0 | Long options always have positive Gamma |
-| Theta < 0 | Long options lose value with time (all else equal) |
-| Input ranges | Volatility, spot, strike, maturity must be economically valid |
-""")
+            for e in val_errors: st.error(f"❌  {e}")
+            for w in val_warnings: st.warning(f"⚠️  {w}")
+            for o in val_ok: st.success(f"✓  {o}")
+            st.markdown(f"**Summary:**  {len(val_ok)} checks passed · {len(val_warnings)} warnings · {len(val_errors)} errors\n\n| Check | Description |\n|---|---|\n| Put-Call Parity | C - P = S·e^(-qT) - K·e^(-rT) |\n| Delta bounds | Call Delta in [0,1], Put Delta in [-1,0] |\n| Price >= intrinsic | Option cannot be worth less than exercise value |\n| Time value >= 0 | Intrinsic is the floor |\n| Gamma > 0 | Always true for long options |\n| Theta < 0 | Long options lose value with time |\n| Input ranges | Vol, spot, strike, maturity must be valid |")
 
         if val_errors:
-            st.error("❌ Critical validation errors detected — results may be incorrect.")
-            st.stop()
+            st.error("❌ Critical validation errors — results may be incorrect."); st.stop()
 
-        # ── RUN BACKTEST ──────────────────────────────────────────────────────
         with st.spinner("Running backtest..."):
             try:
                 df = backtest_strategy_cached(strategy,S,K,T,r,sigma,q,backtest_days,n_simulations)
@@ -951,13 +588,16 @@ elif st.session_state.page == "app":
             ax.hist(pa[pa>=0],bins=bns,color=GREEN,alpha=0.55,edgecolor="none")
             ax.hist(pa[pa<0], bins=bns,color=RED,  alpha=0.55,edgecolor="none")
             yh2=ax.get_ylim()[1]
-            ax.axvline(mp,color=ACCENT,lw=0.8,linestyle="--",alpha=0.9,label=f"Avg  ${mp:.2f}")
-            ax.axvline(0, color=GRAY,  lw=0.5,alpha=0.6,label="BE  $0.00")
+            ax.axvline(mp,color=ACCENT,lw=0.8,linestyle="--",alpha=0.9)
+            ax.axvline(0, color=GRAY,  lw=0.5,alpha=0.6)
             ax.set_ylim(0,yh2*1.12)
-            ax.annotate("BE $0.00",xy=(0,yh2*0.02),fontsize=4.5,color=GRAY,fontfamily="monospace",ha="center",va="bottom",alpha=0.8)
-            ax.legend(fontsize=7,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.8)
+            ax.legend(handles=[
+                legend_entry(ACCENT, f"Avg  ${mp:.2f}"),
+                legend_entry(GRAY,   "BE  $0.00", linestyle="-"),
+            ], fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.85, loc="upper left")
             sty(ax,f"P&L Distribution  ·  {strategy.replace('_',' ').title()}","P&L ($)","Freq")
             fig_h.tight_layout(pad=1.2); st.pyplot(fig_h,use_container_width=True); plt.close(fig_h)
+
         with cs2:
             fig_sc,ax=plt.subplots(figsize=(4.8,3.4),facecolor=BG); ax.set_facecolor(PANEL)
             sp=df['final_spot'].values; pn=df['pnl'].values
@@ -965,97 +605,103 @@ elif st.session_state.page == "app":
             ax.scatter(sp[pn<0], pn[pn<0], alpha=0.45,s=8,color=PURPLE,edgecolors="none",zorder=3)
             ys,yS=pn.min(),pn.max(); yps=(yS-ys)*0.12
             ax.axhline(0,color=GRAY,lw=0.5,alpha=0.55,zorder=2)
-            vline(ax,S,f"S0  ${S:.0f}",YELLOW,   ys-yps,yS)
-            vline(ax,K,f"K  ${K:.0f}", "#9ca3af",ys-yps,yS)
-            ax.set_ylim(ys-yps*1.8,yS+yps)
-            ax.annotate("BE $0.00",xy=(sp.min()+(sp.max()-sp.min())*0.03,0),fontsize=4.5,color=GRAY,fontfamily="monospace",ha="left",va="bottom",alpha=0.8)
+            vline(ax,S,YELLOW); vline(ax,K,"#9ca3af")
+            ax.set_ylim(ys-yps*0.8,yS+yps)
+            label_xaxis(ax, [
+                (S, f"S0={S:.0f}", YELLOW),
+                (K, f"K={K:.0f}", "#9ca3af"),
+            ])
             ax.legend(handles=[
                 plt.Line2D([0],[0],marker='o',color='w',markerfacecolor=GREEN, markersize=5,label='Gain',linewidth=0),
                 plt.Line2D([0],[0],marker='o',color='w',markerfacecolor=PURPLE,markersize=5,label='Loss',linewidth=0),
-                plt.Line2D([0],[0],color=YELLOW,lw=0.8,linestyle='--',label='S0'),
-            ],fontsize=7,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.8)
-            sty(ax,"P&L vs Final Spot","Final spot ($)","P&L ($)")
+                legend_entry(GRAY, "BE $0.00", linestyle="-"),
+            ], fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.85, loc="upper left")
+            sty(ax,"P&L vs Final Spot","","P&L ($)")
             fig_sc.tight_layout(pad=1.2); st.pyplot(fig_sc,use_container_width=True); plt.close(fig_sc)
 
-        st.markdown("---")
-        st.markdown("### Percentiles")
+        st.markdown("---"); st.markdown("### Percentiles")
         pcts=[5,25,50,75,95]
-        st.dataframe(pd.DataFrame({
-            "Percentile": [f"{p}%" for p in pcts],
-            "P&L ($)":    [f"${df['pnl'].quantile(p/100):.2f}" for p in pcts],
-            "Return (%)": [f"{df['return_pct'].quantile(p/100):.2f}%" for p in pcts],
-        }),use_container_width=True,hide_index=True)
+        pct_rows = ""
+        for p in pcts:
+            pnl_val = df['pnl'].quantile(p/100)
+            ret_val = df['return_pct'].quantile(p/100)
+            color = "#10b981" if pnl_val >= 0 else "#ef4444"
+            pct_rows += f"""
+            <tr>
+                <td style="color:#4a9eff;font-weight:normal;">{p}%</td>
+                <td style="color:{color};">${pnl_val:.2f}</td>
+                <td style="color:{color};">{ret_val:.2f}%</td>
+            </tr>"""
+        st.markdown(f"""
+<table style="width:100%;border-collapse:collapse;background:#000;font-family:monospace;font-size:0.72rem;">
+  <thead>
+    <tr style="background:#0a0a0a;border-bottom:1px solid #2a4a6b;">
+      <th style="padding:8px 12px;color:#4a9eff;font-weight:normal;text-align:left;">Percentile</th>
+      <th style="padding:8px 12px;color:#4a9eff;font-weight:normal;text-align:left;">P&L ($)</th>
+      <th style="padding:8px 12px;color:#4a9eff;font-weight:normal;text-align:left;">Return (%)</th>
+    </tr>
+  </thead>
+  <tbody>{pct_rows}</tbody>
+</table>
+""", unsafe_allow_html=True)
 
         # ── DELTA HEDGING ─────────────────────────────────────────────────────
-        st.markdown("---")
-        st.markdown("### Delta Hedging Simulation")
-        st.markdown(f"*Rebalancing: **{hedge_freq}** — {hedge_n_paths} paths  ·  strategy: long {opt}*")
+        st.markdown("---"); st.markdown("### Delta Hedging Simulation")
+        st.markdown(f"*Rebalancing: **{hedge_freq}** — {hedge_n_paths} paths  ·  long {opt}*")
 
         with st.spinner("Running delta hedge simulation..."):
-            hres = delta_hedge_simulation(S, K, T, r, sigma, q, opt,
-                                          backtest_days, hedge_n_paths, hedge_freq)
+            hres = delta_hedge_simulation(S,K,T,r,sigma,q,opt,backtest_days,hedge_n_paths,hedge_freq)
 
-        hp  = hres["hedge_pnls"]
-        uhp = hres["unhedged_pnls"]
-        dps = hres["delta_paths"]
+        hp=hres["hedge_pnls"]; uhp=hres["unhedged_pnls"]; dps=hres["delta_paths"]
 
-        # Hedge validator
         hedge_val_ok = []
-        if abs(hp.mean()) < abs(uhp.mean()) * 0.5:
-            hedge_val_ok.append(f"Hedge reduces avg P&L magnitude ✓  (hedged: ${hp.mean():.3f}  vs  unhedged: ${uhp.mean():.2f})")
+        if abs(hp.mean()) < abs(uhp.mean())*0.5:
+            hedge_val_ok.append(f"Hedge reduces avg P&L magnitude ✓  (hedged: ${hp.mean():.3f} vs unhedged: ${uhp.mean():.2f})")
         if hp.std() < uhp.std():
-            hedge_val_ok.append(f"Hedge reduces P&L dispersion ✓  (std: ${hp.std():.3f}  vs  ${uhp.std():.2f})")
-        entry = hres["entry_cost"]
-        bs_check = bs(S, K, T, r, sigma, q, opt)
-        if abs(entry - bs_check) < 1e-4:
-            hedge_val_ok.append(f"Entry cost matches BS price ✓  (${entry:.4f})")
-
+            hedge_val_ok.append(f"Hedge reduces P&L dispersion ✓  (std: ${hp.std():.3f} vs ${uhp.std():.2f})")
+        if abs(hres["entry_cost"] - bs(S,K,T,r,sigma,q,opt)) < 1e-4:
+            hedge_val_ok.append(f"Entry cost matches BS price ✓  (${hres['entry_cost']:.4f})")
         if hedge_val_ok:
             with st.expander("✅ Hedge Validators", expanded=False):
-                for v in hedge_val_ok:
-                    st.success(f"✓  {v}")
+                for v in hedge_val_ok: st.success(f"✓  {v}")
 
-        hc1,hc2,hc3,hc4,hc5 = st.columns(5)
+        hc1,hc2,hc3,hc4,hc5=st.columns(5)
         hc1.metric("Avg Hedged P&L",   f"${hp.mean():.3f}")
         hc2.metric("Avg Unhedged P&L", f"${uhp.mean():.2f}")
         hc3.metric("Hedge Std Dev",    f"${hp.std():.3f}")
         hc4.metric("Hedge Win Rate",   f"{(hp>0).sum()/len(hp)*100:.1f}%")
         hc5.metric("Entry Cost",       f"${hres['entry_cost']:.4f}")
 
-        st.markdown("""
-> **Key insight:** A delta-hedged P&L near zero confirms the model is consistent.
-> Positive residual = realised vol exceeded implied vol (Gamma won over Theta).
-> The wider the hedged distribution vs a flat line at zero, the greater the hedging error from discrete rebalancing.
-""")
+        st.markdown("> **Key insight:** Hedged P&L near zero confirms model consistency. Positive residual = realised vol exceeded implied vol (Gamma > Theta). Wider hedged distribution = greater discrete rebalancing error.")
 
-        col_hh, col_hs = st.columns(2)
+        col_hh,col_hs=st.columns(2)
         with col_hh:
             fig_hh,ax=plt.subplots(figsize=(4.2,2.8),facecolor=BG); ax.set_facecolor(PANEL)
-            all_vals = np.concatenate([hp, uhp])
-            bins_h   = np.linspace(all_vals.min(), all_vals.max(), 40)
-            ax.hist(uhp, bins=bins_h, color=PURPLE, alpha=0.5, edgecolor="none", label="Unhedged")
-            ax.hist(hp,  bins=bins_h, color=CYAN,   alpha=0.6, edgecolor="none", label="Delta-Hedged")
-            ax.axvline(0,        color=GRAY,  lw=0.6, linestyle="-",  alpha=0.7)
-            ax.axvline(hp.mean(),color=CYAN,  lw=0.9, linestyle="--", alpha=0.9, label=f"Hedged avg ${hp.mean():.3f}")
-            ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.8)
+            all_vals=np.concatenate([hp,uhp]); bins_h=np.linspace(all_vals.min(),all_vals.max(),40)
+            ax.hist(uhp,bins=bins_h,color=PURPLE,alpha=0.5,edgecolor="none",label="Unhedged")
+            ax.hist(hp, bins=bins_h,color=CYAN,  alpha=0.6,edgecolor="none",label="Delta-Hedged")
+            ax.axvline(0,        color=GRAY,lw=0.6,linestyle="-",alpha=0.7)
+            ax.axvline(hp.mean(),color=CYAN,lw=0.9,linestyle="--",alpha=0.9)
+            ax.legend(handles=[
+                legend_entry(PURPLE, "Unhedged"),
+                legend_entry(CYAN,   "Delta-Hedged"),
+                legend_entry(CYAN,   f"Avg ${hp.mean():.3f}"),
+                legend_entry(GRAY,   "BE $0.00", linestyle="-"),
+            ], fontsize=6.5,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.85,loc="upper left")
             sty(ax,"P&L  ·  Hedged vs Unhedged","P&L ($)","Freq")
             fig_hh.tight_layout(pad=1.2); st.pyplot(fig_hh,use_container_width=True); plt.close(fig_hh)
 
         with col_hs:
             fig_hs,ax=plt.subplots(figsize=(4.2,2.8),facecolor=BG); ax.set_facecolor(PANEL)
-            n_show = min(25, len(dps))
-            days_x = np.arange(backtest_days)
+            n_show=min(25,len(dps)); days_x=np.arange(backtest_days)
             for dp in dps[:n_show]:
-                length = min(len(dp), backtest_days)
-                ax.plot(days_x[:length], dp[:length], color=CYAN, lw=0.4, alpha=0.3)
-            max_len = max(len(dp) for dp in dps[:n_show])
-            mean_d  = np.array([
-                np.mean([dps[i][t] for i in range(n_show) if t < len(dps[i])])
-                for t in range(max_len)
-            ])
-            ax.plot(days_x[:len(mean_d)], mean_d, color=YELLOW, lw=1.2, label="Avg Delta")
-            ax.axhline(0.5, color=GRAY, lw=0.5, linestyle=":", alpha=0.6, label="Δ = 0.5 (ATM)")
-            ax.set_ylim(-0.05, 1.05)
-            ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.8)
+                length=min(len(dp),backtest_days)
+                ax.plot(days_x[:length],dp[:length],color=CYAN,lw=0.4,alpha=0.3)
+            max_len=max(len(dp) for dp in dps[:n_show])
+            mean_d=np.array([np.mean([dps[i][t] for i in range(n_show) if t<len(dps[i])]) for t in range(max_len)])
+            ax.plot(days_x[:len(mean_d)],mean_d,color=YELLOW,lw=1.2,label="Avg Delta")
+            ax.axhline(0.5,color=GRAY,lw=0.5,linestyle=":",alpha=0.6,label="Δ = 0.5 (ATM)")
+            ax.set_ylim(-0.05,1.05)
+            ax.legend(fontsize=6.5,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.85)
             sty(ax,"Delta Evolution Over Time","Day","Delta")
             fig_hs.tight_layout(pad=1.2); st.pyplot(fig_hs,use_container_width=True); plt.close(fig_hs)
