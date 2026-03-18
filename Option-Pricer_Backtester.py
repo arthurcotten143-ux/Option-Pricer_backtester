@@ -423,7 +423,7 @@ It assumes the underlying follows a **Geometric Brownian Motion (GBM)** with con
         st.markdown("""
 | Greek | Formula | Range | Interpretation |
 |---|---|---|---|
-| Delta (Δ) | Call: e^(-qT)·N(d1) / Put: -e^(-qT)·N(-d1) | [-1, 1] | Sensitivity of option price to a $1.00 move in the underlying. An ATM option (Delta ~0.5) gains $0.50 when S rises by $1. |
+| Delta (Δ) | Call: e^(-qT)·N(d1) / Put: -e^(-qT)·N(-d1) | [-1, 1] | Sensitivity of option price to a $1 move in the underlying. An ATM option (Delta ~0.5) gains $0.50 when S rises by $1. |
 | Gamma (Γ) | e^(-qT)·N'(d1) / (S·σ·√T) | > 0 | Rate of change of Delta. High Gamma near expiry means unstable hedge ratio |
 | Vega (ν) | S·e^(-qT)·N'(d1)·√T / 100 | > 0 | P&L change per +1% in volatility. Long options always have positive Vega |
 | Theta (Θ) | See full formula (negative, daily decay) | < 0 (long) | Daily P&L erosion from time alone. Accelerates near expiry (Theta burn) |
