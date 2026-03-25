@@ -137,6 +137,16 @@ def implied_volatility(market_price, S, K, T, r, q=0.0, opt="call"):
     except:
         return np.nan
 
+def skewed_iv(base_iv, S, K, T, skew_slope, skew_convexity, term_slope):
+    """
+    Compute a skew-adjusted IV based on moneyness and maturity.
+    IV(K,T) = base_iv + skew_slope*(1 - K/S) + skew_convexity*(1 - K/S)^2 + term_slope*(T - 0.25)
+    """
+    moneyness = 1.0 - K / S
+    term_adj = T - 0.25  # centred around 3-month maturity
+    iv_adj = base_iv + skew_slope * moneyness + skew_convexity * (moneyness ** 2) + term_slope * term_adj
+    return max(iv_adj, 0.01)  # floor at 1%
+
 @st.cache_data(ttl=300)
 def monte_carlo_pricer_cached(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed):
     np.random.seed(seed); dt = T/n_steps
@@ -218,47 +228,24 @@ def sty(ax, title, xl, yl):
     ax.set_axisbelow(True)
 
 def vline(ax, x, color):
-    """Draw a clean vertical line — label shown on x-axis."""
     ax.axvline(x, color=color, lw=0.6, linestyle="--", alpha=0.55)
 
 def legend_entry(color, label, linestyle="--"):
     return plt.Line2D([0],[0], color=color, lw=1.0, linestyle=linestyle, label=label)
 
 def label_xaxis(ax, points):
-    """
-    Draw a fixed info box in the top-left corner listing key levels.
-    points = list of (x_value, label_str, color)
-    """
-    vline_only = True  # vlines already drawn separately
-    box_text = "\n".join([f"{label}" for (_, label, _) in points])
-    # Build a multi-line colored text box using annotate with newlines
     y_top = ax.get_ylim()[1]
     x_left = ax.get_xlim()[0]
     x_range = ax.get_xlim()[1] - ax.get_xlim()[0]
     y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
-
-    # One annotation per label, stacked vertically in top-right corner
     x_pos = ax.get_xlim()[1] - x_range * 0.02
     y_start = ax.get_ylim()[1] - y_range * 0.04
     step = y_range * 0.12
-
     for i, (x_val, label, color) in enumerate(points):
         ax.annotate(
-            label,
-            xy=(x_pos, y_start - i * step),
-            xycoords="data",
-            fontsize=6.2,
-            color=color,
-            fontfamily="monospace",
-            ha="right",
-            va="top",
-            bbox=dict(
-                boxstyle="round,pad=0.25",
-                facecolor="#000000",
-                edgecolor=color,
-                linewidth=0.7,
-                alpha=0.9,
-            ),
+            label, xy=(x_pos, y_start - i * step), xycoords="data",
+            fontsize=6.2, color=color, fontfamily="monospace", ha="right", va="top",
+            bbox=dict(boxstyle="round,pad=0.25", facecolor="#000000", edgecolor=color, linewidth=0.7, alpha=0.9),
         )
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
@@ -281,6 +268,7 @@ with st.sidebar:
         pricing_method = "Black-Scholes"; market_price = 5.0; strategy = "long_call"
         backtest_days = 30; n_simulations = 1000; prem = 0.0
         n_sims = 100000; n_steps = 252; antithetic = True; seed = 42
+        skew_slope = 0.0; skew_convexity = 0.0; term_slope = 0.0
 
         if mode == "Pricing":
             st.markdown("---"); st.markdown("### Pricing model")
@@ -307,6 +295,13 @@ with st.sidebar:
         elif mode == "Implied Volatility":
             st.markdown("---"); st.markdown("### Market price")
             market_price = st.number_input("Observed price ($)", value=5.0, step=0.01, min_value=0.01)
+            st.markdown("---"); st.markdown("### Skew parameters")
+            skew_slope     = st.slider("Skew slope",     -0.50, 0.50, 0.10, 0.01,
+                                       help="Slope of IV vs moneyness. Positive = put skew (OTM puts more expensive)")
+            skew_convexity = st.slider("Skew convexity", 0.00, 0.50, 0.05, 0.01,
+                                       help="Curvature of the smile. Higher = more pronounced wings")
+            term_slope     = st.slider("Term slope",     -0.20, 0.20, 0.02, 0.01,
+                                       help="IV adjustment per year of maturity. Positive = upward sloping term structure")
 
         elif mode == "Backtesting":
             st.markdown("---"); st.markdown("### Backtest settings")
@@ -327,6 +322,7 @@ with st.sidebar:
         prem=n_sims=n_steps=seed=0; antithetic=True
         market_price=5.0; strategy="long_call"; backtest_days=30; n_simulations=1000; run=False
         hedge_freq="Daily"; hedge_n_paths=100
+        skew_slope=0.0; skew_convexity=0.0; term_slope=0.0
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: DOCS
@@ -376,8 +372,10 @@ if st.session_state.page == "docs":
         st.markdown("Implied Volatility (IV) is the volatility value σ* that, when plugged into Black-Scholes, reproduces the observed market price. It is the market's forward-looking estimate of uncertainty.")
         st.markdown("### Calibration Problem")
         st.markdown('<div class="formula-box"><b>Find σ* such that:</b><br><br>BS(S, K, T, r, σ*, q) = C_market<br><br>No closed-form inverse exists. Solved numerically using <b>Brent\'s root-finding method</b>:<br>→ Bracket: σ ∈ [0.001, 5.0]<br>→ Convergence: typically &lt; 100 iterations<br>→ Returns NaN if no solution exists</div>', unsafe_allow_html=True)
+        st.markdown("### Skew-Adjusted Market Price")
+        st.markdown('<div class="formula-box"><b>IV surface model:</b><br><br>IV(K, T) = IV_base + slope · (1 - K/S) + convexity · (1 - K/S)² + term · (T - 0.25)<br><br><b>Market price (skew-adjusted):</b><br>C_market = BS(S, K, T, r, IV(K,T), q)<br><br>This synthetic surface captures:<br>- <b>Put skew</b>: OTM puts have higher IV (crash protection demand)<br>- <b>Smile wings</b>: convexity lifts both OTM tails<br>- <b>Term structure</b>: longer maturities can carry higher or lower IV</div>', unsafe_allow_html=True)
         st.markdown("### Output Metrics")
-        st.markdown("| Metric | Meaning |\n|---|---|\n| Implied Vol | σ* — volatility implied by the market price |\n| Market price | The option price as traded/quoted |\n| Theoretical price | BS price using σ* — should equal market price |\n| Vega | Sensitivity to a +1% change in σ* |")
+        st.markdown("| Metric | Meaning |\n|---|---|\n| Implied Vol (calibrated) | σ* from observed market price |\n| Skew-adjusted IV | IV(K,T) from the surface model |\n| Market price (skew) | BS price using skew-adjusted IV — reflects real market dynamics |\n| Theoretical price (flat) | BS price using input σ — assumes flat vol, no skew |\n| Price gap | Difference between market and theoretical — measures skew impact |\n| Vega (flat σ) | Sensitivity using input vol |\n| Vega (skew IV) | Sensitivity using skew-adjusted vol |")
         st.markdown("### Volatility Skew Chart")
         st.markdown("Plots IV against **moneyness** (K/S) for calls and puts.\n- **Flat** — BS world: constant IV (never observed in practice)\n- **Downward slope** — typical equity put skew (crash insurance demand)\n- **Smile** — elevated OTM IV on both sides, common in FX\n\n> Skew here is synthetic — illustrates mechanics, not real market data.")
         st.markdown("### Term Structure Chart")
@@ -507,42 +505,111 @@ elif st.session_state.page == "app":
 
     # ── IMPLIED VOLATILITY ────────────────────────────────────────────────────
     elif mode == "Implied Volatility":
+
+        # 1. Calibrate IV from user-entered market price
         with st.spinner("Calibrating..."):
-            iv=implied_volatility(market_price,S,K,T,r,q,opt)
+            iv = implied_volatility(market_price, S, K, T, r, q, opt)
+
         if np.isnan(iv):
             st.error("❌ Cannot calibrate IV — check inputs")
         else:
-            c1,c2,c3,c4=st.columns(4)
-            c1.metric("Implied Vol",        f"{iv*100:.2f}%")
-            c2.metric("Market price",       f"${market_price:.4f}")
-            c3.metric("Theoretical price",  f"${bs(S,K,T,r,iv,q,opt):.4f}")
-            c4.metric("Vega",               f"{greeks(S,K,T,r,iv,q,opt)['vega']:.5f}")
+            # 2. Compute skew-adjusted IV for this strike/maturity
+            iv_skew = skewed_iv(iv, S, K, T, skew_slope, skew_convexity, term_slope)
+
+            # 3. Prices
+            theo_price_flat = bs(S, K, T, r, sigma, q, opt)       # BS with sidebar σ (flat world)
+            market_price_skew = bs(S, K, T, r, iv_skew, q, opt)   # BS with skew-adjusted IV
+            price_gap = market_price_skew - theo_price_flat
+
+            # 4. Greeks with both vols
+            g_flat = greeks(S, K, T, r, sigma, q, opt)
+            g_skew = greeks(S, K, T, r, iv_skew, q, opt)
+
+            # ── METRICS ROW 1: Volatilities ──
+            st.markdown("### Volatility")
+            v1, v2, v3, v4 = st.columns(4)
+            v1.metric("Input σ",              f"{sigma*100:.2f}%")
+            v2.metric("Calibrated IV",        f"{iv*100:.2f}%")
+            v3.metric("Skew-adjusted IV",     f"{iv_skew*100:.2f}%")
+            v4.metric("IV shift (skew - flat)", f"{(iv_skew - sigma)*100:+.2f}%")
+
+            # ── METRICS ROW 2: Prices ──
+            st.markdown("### Pricing impact")
+            p1, p2, p3, p4 = st.columns(4)
+            p1.metric("Theoretical (flat σ)",    f"${theo_price_flat:.4f}")
+            p2.metric("Market price (skew IV)",  f"${market_price_skew:.4f}")
+            p3.metric("Price gap",               f"${price_gap:+.4f}")
+            p4.metric("Gap (%)",                 f"{(price_gap/theo_price_flat*100):+.2f}%" if theo_price_flat > 0.0001 else "N/A")
+
+            # ── METRICS ROW 3: Greeks comparison ──
+            st.markdown("### Greeks comparison")
+            gc1, gc2, gc3, gc4, gc5 = st.columns(5)
+            gc1.metric("Delta (flat / skew)", f"{g_flat['delta']:+.4f} / {g_skew['delta']:+.4f}")
+            gc2.metric("Gamma (flat / skew)", f"{g_flat['gamma']:.5f} / {g_skew['gamma']:.5f}")
+            gc3.metric("Vega (flat / skew)",  f"{g_flat['vega']:.4f} / {g_skew['vega']:.4f}")
+            gc4.metric("Theta (flat / skew)", f"{g_flat['theta']:+.4f} / {g_skew['theta']:+.4f}")
+            gc5.metric("Rho (flat / skew)",   f"{g_flat['rho']:+.4f} / {g_skew['rho']:+.4f}")
+
+            # ── Interpretation ──
+            st.markdown("---")
+            if abs(price_gap) < 0.01:
+                st.success("✓ Skew impact is negligible — flat vol is a reasonable approximation here.")
+            elif price_gap > 0:
+                st.warning(f"⚠️ Skew adds **${price_gap:.4f}** to the price. The market prices this option higher than flat BS suggests — typical for OTM puts or high-demand strikes.")
+            else:
+                st.info(f"ℹ️ Skew reduces the price by **${abs(price_gap):.4f}**. Flat BS overestimates the market price at this strike/maturity.")
+
+            # ── CHARTS ────────────────────────────────────────────────────────
             st.markdown("---"); st.markdown("### Volatility Surface")
-            cs,ct=st.columns(2)
+            cs, ct = st.columns(2)
+
             with cs:
-                stks=np.linspace(S*0.7,S*1.3,20)
-                ivc=[implied_volatility(bs(S,k,T,r,iv,q,"call"),S,k,T,r,q,"call") for k in stks]
-                ivp=[implied_volatility(bs(S,k,T,r,iv,q,"put"), S,k,T,r,q,"put")  for k in stks]
-                fig_s,ax=plt.subplots(figsize=(4.8,3.4),facecolor=BG); ax.set_facecolor(PANEL)
-                vc=[(k/S,v*100) for k,v in zip(stks,ivc) if v and not np.isnan(v)]
-                vp_=[(k/S,v*100) for k,v in zip(stks,ivp) if v and not np.isnan(v)]
-                if vc: xc,yc=zip(*vc); ax.plot(xc,yc,color=CYAN,  lw=1.1,marker='o',markersize=3.2,label='Calls',markeredgewidth=0)
-                if vp_: xp,yp=zip(*vp_); ax.plot(xp,yp,color=PURPLE,lw=1.1,marker='s',markersize=3.2,label='Puts', markeredgewidth=0)
-                ax.axvline(1.0,   color=GRAY,  lw=0.5,linestyle=":",alpha=0.6,label="ATM")
-                ax.axhline(iv*100,color=ACCENT,lw=0.5,linestyle="--",alpha=0.6)
-                ax.legend(fontsize=7,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.8)
-                sty(ax,"Skew  ·  Calls vs Puts","Moneyness (K/S)","IV (%)")
-                fig_s.tight_layout(pad=1.2); st.pyplot(fig_s,use_container_width=True); plt.close(fig_s)
+                stks = np.linspace(S*0.7, S*1.3, 40)
+                iv_skew_curve_c = [skewed_iv(iv, S, k, T, skew_slope, skew_convexity, term_slope) for k in stks]
+                iv_skew_curve_p = [skewed_iv(iv, S, k, T, skew_slope, skew_convexity, term_slope) for k in stks]
+                iv_flat_line    = [sigma] * len(stks)
+
+                fig_s, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG); ax.set_facecolor(PANEL)
+                ax.plot([k/S for k in stks], [v*100 for v in iv_skew_curve_c], color=CYAN, lw=1.2, marker='o', markersize=2.5, markeredgewidth=0, label='Skew IV (calls)')
+                ax.plot([k/S for k in stks], [v*100 for v in iv_skew_curve_p], color=PURPLE, lw=1.2, marker='s', markersize=2.5, markeredgewidth=0, label='Skew IV (puts)', alpha=0.7)
+                ax.plot([k/S for k in stks], [v*100 for v in iv_flat_line], color=RED, lw=0.8, linestyle='--', alpha=0.6, label=f'Flat σ = {sigma*100:.1f}%')
+                ax.axvline(1.0, color=GRAY, lw=0.5, linestyle=":", alpha=0.6)
+                ax.axvline(K/S, color=YELLOW, lw=0.6, linestyle="--", alpha=0.7)
+                ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.8)
+                sty(ax, "Skew  ·  IV vs Flat σ", "Moneyness (K/S)", "IV (%)")
+                fig_s.tight_layout(pad=1.2); st.pyplot(fig_s, use_container_width=True); plt.close(fig_s)
+
             with ct:
-                mats=np.linspace(max(T,7/365),min(T*3,1.0),12)
-                ivt=[implied_volatility(bs(S,K,m,r,iv,q,"call"),S,K,m,r,q,"call") for m in mats]
-                fig_t,ax=plt.subplots(figsize=(4.8,3.4),facecolor=BG); ax.set_facecolor(PANEL)
-                vt=[(m*365,v*100) for m,v in zip(mats,ivt) if v and not np.isnan(v)]
-                if vt: xt,yt=zip(*vt); ax.plot(xt,yt,color=CYAN,lw=1.1,marker='o',markersize=3.2,markeredgewidth=0)
-                ax.axvline(T*365, color=GRAY,  lw=0.5,linestyle=":",alpha=0.6)
-                ax.axhline(iv*100,color=ACCENT,lw=0.5,linestyle="--",alpha=0.6)
-                sty(ax,"Term Structure","Maturity (days)","IV (%)")
-                fig_t.tight_layout(pad=1.2); st.pyplot(fig_t,use_container_width=True); plt.close(fig_t)
+                mats = np.linspace(max(T, 7/365), min(T*3, 2.0), 20)
+                iv_term = [skewed_iv(iv, S, K, m, skew_slope, skew_convexity, term_slope) for m in mats]
+                iv_flat_term = [sigma] * len(mats)
+
+                fig_t, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG); ax.set_facecolor(PANEL)
+                ax.plot([m*365 for m in mats], [v*100 for v in iv_term], color=CYAN, lw=1.2, marker='o', markersize=2.5, markeredgewidth=0, label='Skew IV')
+                ax.plot([m*365 for m in mats], [v*100 for v in iv_flat_term], color=RED, lw=0.8, linestyle='--', alpha=0.6, label=f'Flat σ = {sigma*100:.1f}%')
+                ax.axvline(T*365, color=YELLOW, lw=0.6, linestyle="--", alpha=0.7)
+                ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.8)
+                sty(ax, "Term Structure  ·  IV vs Flat σ", "Maturity (days)", "IV (%)")
+                fig_t.tight_layout(pad=1.2); st.pyplot(fig_t, use_container_width=True); plt.close(fig_t)
+
+            # ── PRICE SURFACE: Market vs Theoretical across strikes ──
+            st.markdown("---"); st.markdown("### Price impact across strikes")
+            fig_p, ax = plt.subplots(figsize=(8, 3.4), facecolor=BG); ax.set_facecolor(PANEL)
+            stk_range = np.linspace(S*0.8, S*1.2, 50)
+            prices_flat = [bs(S, k, T, r, sigma, q, opt) for k in stk_range]
+            prices_skew = [bs(S, k, T, r, skewed_iv(iv, S, k, T, skew_slope, skew_convexity, term_slope), q, opt) for k in stk_range]
+            ax.plot(stk_range, prices_flat, color=RED,  lw=1.0, linestyle='--', label=f'Theoretical (flat σ={sigma*100:.0f}%)')
+            ax.plot(stk_range, prices_skew, color=CYAN, lw=1.2, label='Market (skew-adjusted)')
+            ax.fill_between(stk_range, prices_flat, prices_skew, alpha=0.15, color=CYAN)
+            vline(ax, K, YELLOW)
+            vline(ax, S, "#9ca3af")
+            label_xaxis(ax, [
+                (K, f"K={K:.0f}", YELLOW),
+                (S, f"S={S:.0f}", "#9ca3af"),
+            ])
+            ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.85, loc="upper right")
+            sty(ax, f"Option Price  ·  Market vs Theoretical  ·  {opt.upper()}", "Strike ($)", "Price ($)")
+            fig_p.tight_layout(pad=1.2); st.pyplot(fig_p, use_container_width=True); plt.close(fig_p)
 
     # ── BACKTESTING ───────────────────────────────────────────────────────────
     elif mode == "Backtesting":
