@@ -96,9 +96,9 @@ GRAY, TEXT, TITLE = "#6b7280", "#e5e7eb", "#4a9eff"
 
 def bs(S, K, T, r, sigma, q=0.0, opt="call"):
     if T <= 1e-10:
-        return max(S-K, 0) if opt=="call" else max(K-S, 0)
+        return max(S-K, 0) if opt == "call" else max(K-S, 0)
     if sigma <= 1e-10:
-        return max(S*np.exp(-q*T)-K*np.exp(-r*T), 0) if opt=="call" \
+        return max(S*np.exp(-q*T)-K*np.exp(-r*T), 0) if opt == "call" \
                else max(K*np.exp(-r*T)-S*np.exp(-q*T), 0)
     d1 = (np.log(S/K) + (r-q+0.5*sigma**2)*T) / (sigma*np.sqrt(T))
     d2 = d1 - sigma*np.sqrt(T)
@@ -108,32 +108,39 @@ def bs(S, K, T, r, sigma, q=0.0, opt="call"):
 
 def greeks(S, K, T, r, sigma, q=0.0, opt="call"):
     if T <= 1e-10 or sigma <= 1e-10:
-        return {k: 0.0 for k in ["delta","gamma","vega","theta","rho"]}
-    d1 = (np.log(S/K)+(r-q+0.5*sigma**2)*T)/(sigma*np.sqrt(T))
-    d2 = d1 - sigma*np.sqrt(T); nd1 = norm.pdf(d1)
+        return {k: 0.0 for k in ["delta", "gamma", "vega", "theta", "rho"]}
+    d1 = (np.log(S/K) + (r-q+0.5*sigma**2)*T) / (sigma*np.sqrt(T))
+    d2 = d1 - sigma*np.sqrt(T)
+    nd1 = norm.pdf(d1)
     if opt == "call":
         delta = np.exp(-q*T)*norm.cdf(d1)
-        theta = (-(S*np.exp(-q*T)*nd1*sigma)/(2*np.sqrt(T)) - r*K*np.exp(-r*T)*norm.cdf(d2) + q*S*np.exp(-q*T)*norm.cdf(d1)) / 365
-        rho   = K*T*np.exp(-r*T)*norm.cdf(d2) / 100
+        theta = (-(S*np.exp(-q*T)*nd1*sigma)/(2*np.sqrt(T))
+                 - r*K*np.exp(-r*T)*norm.cdf(d2)
+                 + q*S*np.exp(-q*T)*norm.cdf(d1)) / 365
+        rho = K*T*np.exp(-r*T)*norm.cdf(d2) / 100
     else:
         delta = -np.exp(-q*T)*norm.cdf(-d1)
-        theta = (-(S*np.exp(-q*T)*nd1*sigma)/(2*np.sqrt(T)) + r*K*np.exp(-r*T)*norm.cdf(-d2) - q*S*np.exp(-q*T)*norm.cdf(-d1)) / 365
-        rho   = -K*T*np.exp(-r*T)*norm.cdf(-d2) / 100
+        theta = (-(S*np.exp(-q*T)*nd1*sigma)/(2*np.sqrt(T))
+                 + r*K*np.exp(-r*T)*norm.cdf(-d2)
+                 - q*S*np.exp(-q*T)*norm.cdf(-d1)) / 365
+        rho = -K*T*np.exp(-r*T)*norm.cdf(-d2) / 100
     gamma = np.exp(-q*T)*nd1 / (S*sigma*np.sqrt(T))
-    vega  = S*np.exp(-q*T)*nd1*np.sqrt(T) / 100
-    return {"delta":delta,"gamma":gamma,"vega":vega,"theta":theta,"rho":rho}
+    vega = S*np.exp(-q*T)*nd1*np.sqrt(T) / 100
+    return {"delta": delta, "gamma": gamma, "vega": vega, "theta": theta, "rho": rho}
 
 def prob_itm(S, K, T, r, sigma, q=0.0, opt="call"):
     if T <= 1e-10 or sigma <= 1e-10:
-        return 1.0 if (opt=="call" and S>K) or (opt=="put" and S<K) else 0.0
-    d2 = (np.log(S/K)+(r-q-0.5*sigma**2)*T)/(sigma*np.sqrt(T))
-    return norm.cdf(d2) if opt=="call" else norm.cdf(-d2)
+        return 1.0 if (opt == "call" and S > K) or (opt == "put" and S < K) else 0.0
+    d2 = (np.log(S/K) + (r-q-0.5*sigma**2)*T) / (sigma*np.sqrt(T))
+    return norm.cdf(d2) if opt == "call" else norm.cdf(-d2)
 
 def implied_volatility(market_price, S, K, T, r, q=0.0, opt="call"):
-    if T <= 1e-10: return np.nan
-    if market_price < (max(S-K,0) if opt=="call" else max(K-S,0)) * 0.99: return np.nan
+    if T <= 1e-10:
+        return np.nan
+    if market_price < (max(S-K, 0) if opt == "call" else max(K-S, 0)) * 0.99:
+        return np.nan
     try:
-        return brentq(lambda sig: bs(S,K,T,r,sig,q,opt)-market_price, 0.001, 5.0, maxiter=100)
+        return brentq(lambda sig: bs(S, K, T, r, sig, q, opt) - market_price, 0.001, 5.0, maxiter=100)
     except:
         return np.nan
 
@@ -143,45 +150,54 @@ def skewed_iv(base_iv, S, K, T, skew_slope, skew_convexity, term_slope):
     IV(K,T) = base_iv + skew_slope*(1 - K/S) + skew_convexity*(1 - K/S)^2 + term_slope*(T - 0.25)
     """
     moneyness = 1.0 - K / S
-    term_adj = T - 0.25  # centred around 3-month maturity
+    term_adj = T - 0.25
     iv_adj = base_iv + skew_slope * moneyness + skew_convexity * (moneyness ** 2) + term_slope * term_adj
-    return max(iv_adj, 0.01)  # floor at 1%
+    return max(iv_adj, 0.01)
 
 @st.cache_data(ttl=300)
 def monte_carlo_pricer_cached(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, seed):
-    np.random.seed(seed); dt = T/n_steps
+    np.random.seed(seed)
+    dt = T / n_steps
     all_payoffs, sample_paths = [], None
-    for batch in range(int(np.ceil(n_sims/100000))):
-        nb = min(100000, n_sims-batch*100000)
-        n  = nb//2 if antithetic else nb
-        Z  = np.random.standard_normal((n, n_steps))
-        if antithetic: Z = np.concatenate([Z,-Z], axis=0)
+    for batch in range(int(np.ceil(n_sims / 100000))):
+        nb = min(100000, n_sims - batch * 100000)
+        n = nb // 2 if antithetic else nb
+        Z = np.random.standard_normal((n, n_steps))
+        if antithetic:
+            Z = np.concatenate([Z, -Z], axis=0)
         S_T = S * np.exp(np.sum((r-q-0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z, axis=1))
-        if batch==0: sample_paths = S_T[:min(1000,n_sims)].copy()
-        all_payoffs.append(np.maximum(S_T-K,0) if opt=="call" else np.maximum(K-S_T,0))
+        if batch == 0:
+            sample_paths = S_T[:min(1000, n_sims)].copy()
+        all_payoffs.append(np.maximum(S_T-K, 0) if opt == "call" else np.maximum(K-S_T, 0))
         del Z, S_T
     all_payoffs = np.concatenate(all_payoffs)
-    price = np.exp(-r*T)*np.mean(all_payoffs)
-    se    = np.exp(-r*T)*np.std(all_payoffs)/np.sqrt(len(all_payoffs))
-    g     = greeks(S,K,T,r,sigma,q,opt)
-    return {"price":price,"std_error":se,"paths":sample_paths,**g}
+    price = np.exp(-r*T) * np.mean(all_payoffs)
+    se = np.exp(-r*T) * np.std(all_payoffs) / np.sqrt(len(all_payoffs))
+    g = greeks(S, K, T, r, sigma, q, opt)
+    return {"price": price, "std_error": se, "paths": sample_paths, **g}
 
 @st.cache_data(ttl=300)
 def backtest_strategy_cached(strategy, S0, K, T, r, sigma, q, n_days, n_sims):
-    np.random.seed(42); dt = T/n_days
-    Z   = np.random.standard_normal((n_sims, n_days))
-    S_f = S0*np.exp(np.sum((r-q-0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z, axis=1))
+    np.random.seed(42)
+    dt = T / n_days
+    Z = np.random.standard_normal((n_sims, n_days))
+    S_f = S0 * np.exp(np.sum((r-q-0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z, axis=1))
     rows = []
     for Se in S_f:
-        if   strategy=="long_call":      pnl = max(Se-K,0) - bs(S0,K,T,r,sigma,q,"call")
-        elif strategy=="long_put":       pnl = max(K-Se,0) - bs(S0,K,T,r,sigma,q,"put")
-        elif strategy=="covered_call":   pnl = (Se-S0)+bs(S0,K,T,r,sigma,q,"call")-max(Se-K,0)
-        elif strategy=="protective_put": pnl = (Se-S0)-bs(S0,K,T,r,sigma,q,"put")+max(K-Se,0)
-        elif strategy=="straddle":       pnl = max(Se-K,0)+max(K-Se,0)-bs(S0,K,T,r,sigma,q,"call")-bs(S0,K,T,r,sigma,q,"put")
-        elif strategy=="strangle":
-            Kc,Kp = K*1.05,K*0.95
-            pnl   = max(Se-Kc,0)+max(Kp-Se,0)-bs(S0,Kc,T,r,sigma,q,"call")-bs(S0,Kp,T,r,sigma,q,"put")
-        rows.append({"final_spot":Se,"pnl":pnl,"return_pct":(pnl/S0)*100})
+        if strategy == "long_call":
+            pnl = max(Se-K, 0) - bs(S0, K, T, r, sigma, q, "call")
+        elif strategy == "long_put":
+            pnl = max(K-Se, 0) - bs(S0, K, T, r, sigma, q, "put")
+        elif strategy == "covered_call":
+            pnl = (Se-S0) + bs(S0, K, T, r, sigma, q, "call") - max(Se-K, 0)
+        elif strategy == "protective_put":
+            pnl = (Se-S0) - bs(S0, K, T, r, sigma, q, "put") + max(K-Se, 0)
+        elif strategy == "straddle":
+            pnl = max(Se-K, 0) + max(K-Se, 0) - bs(S0, K, T, r, sigma, q, "call") - bs(S0, K, T, r, sigma, q, "put")
+        elif strategy == "strangle":
+            Kc, Kp = K*1.05, K*0.95
+            pnl = max(Se-Kc, 0) + max(Kp-Se, 0) - bs(S0, Kc, T, r, sigma, q, "call") - bs(S0, Kp, T, r, sigma, q, "put")
+        rows.append({"final_spot": Se, "pnl": pnl, "return_pct": (pnl/S0)*100})
     return pd.DataFrame(rows)
 
 @st.cache_data(ttl=300)
@@ -193,13 +209,14 @@ def delta_hedge_simulation(S0, K, T, r, sigma, q, opt, n_days, n_paths, freq):
     hedge_pnls, unhedged_pnls, delta_paths = [], [], []
     entry_cost = bs(S0, K, T, r, sigma, q, opt)
     for _ in range(n_paths):
-        Z    = np.random.standard_normal(n_days)
+        Z = np.random.standard_normal(n_days)
         logS = np.log(S0) + np.cumsum((r-q-0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z)
         path = np.concatenate([[S0], np.exp(logS)])
         cash, stock_pos, deltas = -entry_cost, 0.0, []
         for i in range(n_days):
             S_now, T_rem = path[i], T - i*dt
-            if T_rem < 1e-8: break
+            if T_rem < 1e-8:
+                break
             d_now = greeks(S_now, K, T_rem, r, sigma, q, opt)["delta"]
             deltas.append(d_now)
             if i % rebal_every == 0:
@@ -208,13 +225,17 @@ def delta_hedge_simulation(S0, K, T, r, sigma, q, opt, n_days, n_paths, freq):
                 stock_pos = new_stock
             cash *= np.exp(r * dt)
         S_T = path[-1]
-        payoff = max(S_T-K,0) if opt=="call" else max(K-S_T,0)
-        cash += stock_pos*S_T + payoff
+        payoff = max(S_T-K, 0) if opt == "call" else max(K-S_T, 0)
+        cash += stock_pos * S_T + payoff
         hedge_pnls.append(cash)
         unhedged_pnls.append(payoff - entry_cost)
         delta_paths.append(deltas)
-    return {"hedge_pnls": np.array(hedge_pnls), "unhedged_pnls": np.array(unhedged_pnls),
-            "delta_paths": delta_paths, "entry_cost": entry_cost}
+    return {
+        "hedge_pnls": np.array(hedge_pnls),
+        "unhedged_pnls": np.array(unhedged_pnls),
+        "delta_paths": delta_paths,
+        "entry_cost": entry_cost
+    }
 
 # ─── PLOT HELPERS ─────────────────────────────────────────────────────────────
 
@@ -224,18 +245,18 @@ def sty(ax, title, xl, yl):
     ax.set_ylabel(yl, color="#8eafc2", fontsize=7.5, labelpad=6)
     ax.grid(True, alpha=0.18, linewidth=0.3, linestyle="--")
     ax.tick_params(labelsize=7, colors="#9ca3af", width=0.5, length=3, pad=4)
-    for sp in ax.spines.values(): sp.set_linewidth(0.6); sp.set_edgecolor("#2a4a6b")
+    for sp in ax.spines.values():
+        sp.set_linewidth(0.6)
+        sp.set_edgecolor("#2a4a6b")
     ax.set_axisbelow(True)
 
 def vline(ax, x, color):
     ax.axvline(x, color=color, lw=0.6, linestyle="--", alpha=0.55)
 
 def legend_entry(color, label, linestyle="--"):
-    return plt.Line2D([0],[0], color=color, lw=1.0, linestyle=linestyle, label=label)
+    return plt.Line2D([0], [0], color=color, lw=1.0, linestyle=linestyle, label=label)
 
 def label_xaxis(ax, points):
-    y_top = ax.get_ylim()[1]
-    x_left = ax.get_xlim()[0]
     x_range = ax.get_xlim()[1] - ax.get_xlim()[0]
     y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
     x_pos = ax.get_xlim()[1] - x_range * 0.02
@@ -243,9 +264,21 @@ def label_xaxis(ax, points):
     step = y_range * 0.12
     for i, (x_val, label, color) in enumerate(points):
         ax.annotate(
-            label, xy=(x_pos, y_start - i * step), xycoords="data",
-            fontsize=6.2, color=color, fontfamily="monospace", ha="right", va="top",
-            bbox=dict(boxstyle="round,pad=0.25", facecolor="#000000", edgecolor=color, linewidth=0.7, alpha=0.9),
+            label,
+            xy=(x_pos, y_start - i * step),
+            xycoords="data",
+            fontsize=6.2,
+            color=color,
+            fontfamily="monospace",
+            ha="right",
+            va="top",
+            bbox=dict(
+                boxstyle="round,pad=0.25",
+                facecolor="#000000",
+                edgecolor=color,
+                linewidth=0.7,
+                alpha=0.9,
+            ),
         )
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
@@ -255,26 +288,38 @@ with st.sidebar:
     st.markdown("---")
     if st.session_state.page == "app":
         if st.button("📐  Formula Reference", use_container_width=True):
-            st.session_state.page = "docs"; st.rerun()
+            st.session_state.page = "docs"
+            st.rerun()
     else:
         if st.button("◀  Back to App", use_container_width=True):
-            st.session_state.page = "app"; st.rerun()
+            st.session_state.page = "app"
+            st.rerun()
     st.markdown("---")
 
     if st.session_state.page == "app":
         st.markdown("### Mode")
         mode = st.selectbox("Select mode", ["Pricing", "Implied Volatility", "Backtesting"])
 
-        pricing_method = "Black-Scholes"; market_price = 5.0; strategy = "long_call"
-        backtest_days = 30; n_simulations = 1000; prem = 0.0
-        n_sims = 100000; n_steps = 252; antithetic = True; seed = 42
-        skew_slope = 0.0; skew_convexity = 0.0; term_slope = 0.0
+        pricing_method = "Black-Scholes"
+        strategy = "long_call"
+        backtest_days = 30
+        n_simulations = 1000
+        prem = 0.0
+        n_sims = 100000
+        n_steps = 252
+        antithetic = True
+        seed = 42
+        skew_slope = 0.0
+        skew_convexity = 0.0
+        term_slope = 0.0
 
         if mode == "Pricing":
-            st.markdown("---"); st.markdown("### Pricing model")
+            st.markdown("---")
+            st.markdown("### Pricing model")
             pricing_method = st.selectbox("Model", ["Black-Scholes", "Monte Carlo"])
 
-        st.markdown("---"); st.markdown("### Parameters")
+        st.markdown("---")
+        st.markdown("### Parameters")
         S     = st.number_input("Spot S ($)",           value=100.0, step=1.0)
         K     = st.number_input("Strike K ($)",         value=100.0, step=1.0)
         T_day = st.number_input("Maturity (days)",      value=30,    step=1, min_value=1)
@@ -286,43 +331,60 @@ with st.sidebar:
         if mode == "Pricing":
             prem = st.number_input("Premium paid ($) [opt.]", value=0.0, step=0.01)
             if pricing_method == "Monte Carlo":
-                st.markdown("---"); st.markdown("### Monte Carlo settings")
-                n_sims     = st.selectbox("Simulations", [10000,50000,100000,250000], index=2)
-                n_steps    = st.selectbox("Time steps",  [50,100,252], index=2)
+                st.markdown("---")
+                st.markdown("### Monte Carlo settings")
+                n_sims     = st.selectbox("Simulations", [10000, 50000, 100000, 250000], index=2)
+                n_steps    = st.selectbox("Time steps",  [50, 100, 252], index=2)
                 antithetic = st.checkbox("Antithetic variates", value=True)
                 seed       = st.number_input("Seed", value=42, step=1)
 
         elif mode == "Implied Volatility":
-            st.markdown("---"); st.markdown("### Market price")
-            market_price = st.number_input("Observed price ($)", value=5.0, step=0.01, min_value=0.01)
-            st.markdown("---"); st.markdown("### Skew parameters")
-            skew_slope     = st.slider("Skew slope",     -0.50, 0.50, 0.10, 0.01,
-                                       help="Slope of IV vs moneyness. Positive = put skew (OTM puts more expensive)")
-            skew_convexity = st.slider("Skew convexity", 0.00, 0.50, 0.05, 0.01,
-                                       help="Curvature of the smile. Higher = more pronounced wings")
-            term_slope     = st.slider("Term slope",     -0.20, 0.20, 0.02, 0.01,
-                                       help="IV adjustment per year of maturity. Positive = upward sloping term structure")
+            st.markdown("---")
+            st.markdown("### Skew parameters")
+            skew_slope = st.slider(
+                "Skew slope", -0.50, 0.50, 0.10, 0.01,
+                help="Slope of IV vs moneyness. Positive = put skew (OTM puts more expensive)")
+            skew_convexity = st.slider(
+                "Skew convexity", 0.00, 0.50, 0.05, 0.01,
+                help="Curvature of the smile. Higher = more pronounced wings")
+            term_slope = st.slider(
+                "Term slope", -0.20, 0.20, 0.02, 0.01,
+                help="IV adjustment per year of maturity. Positive = upward sloping term structure")
 
         elif mode == "Backtesting":
-            st.markdown("---"); st.markdown("### Backtest settings")
+            st.markdown("---")
+            st.markdown("### Backtest settings")
             strategy = st.selectbox("Strategy",
-                ["long_call","long_put","covered_call","protective_put","straddle","strangle"],
-                format_func=lambda x: x.replace('_',' ').title())
-            backtest_days = st.slider("Horizon (days)", 1, min(365,T_day), min(T_day,30))
-            n_simulations = st.selectbox("Simulations", [100,500,1000,2000], index=2)
-            hedge_freq    = st.selectbox("Delta hedge rebalancing", ["Daily","Weekly","At expiry"], index=0)
-            hedge_n_paths = st.selectbox("Delta hedge paths", [50,100,250], index=1)
+                ["long_call", "long_put", "covered_call", "protective_put", "straddle", "strangle"],
+                format_func=lambda x: x.replace('_', ' ').title())
+            backtest_days = st.slider("Horizon (days)", 1, min(365, T_day), min(T_day, 30))
+            n_simulations = st.selectbox("Simulations", [100, 500, 1000, 2000], index=2)
+            hedge_freq    = st.selectbox("Delta hedge rebalancing", ["Daily", "Weekly", "At expiry"], index=0)
+            hedge_n_paths = st.selectbox("Delta hedge paths", [50, 100, 250], index=1)
 
         st.markdown("---")
         run = st.button("⚡  RUN", use_container_width=True, type="primary")
 
     else:
-        S=K=100.0; T_day=30; r=0.05; sigma=0.20; q=0.0; opt="call"
-        mode="Pricing"; pricing_method="Black-Scholes"
-        prem=n_sims=n_steps=seed=0; antithetic=True
-        market_price=5.0; strategy="long_call"; backtest_days=30; n_simulations=1000; run=False
-        hedge_freq="Daily"; hedge_n_paths=100
-        skew_slope=0.0; skew_convexity=0.0; term_slope=0.0
+        S = K = 100.0
+        T_day = 30
+        r = 0.05
+        sigma = 0.20
+        q = 0.0
+        opt = "call"
+        mode = "Pricing"
+        pricing_method = "Black-Scholes"
+        prem = n_sims = n_steps = seed = 0
+        antithetic = True
+        strategy = "long_call"
+        backtest_days = 30
+        n_simulations = 1000
+        run = False
+        hedge_freq = "Daily"
+        hedge_n_paths = 100
+        skew_slope = 0.0
+        skew_convexity = 0.0
+        term_slope = 0.0
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: DOCS
@@ -368,18 +430,18 @@ if st.session_state.page == "docs":
         st.markdown("The histogram shows the **distribution of simulated terminal prices S(T)**.\n- **Shape** — log-normal bell curve centred around the forward price\n- **Width** — increases with σ and T\n- **K line** — shows how many paths finish in-the-money")
 
     with doc_tab3:
-        st.markdown("## Implied Volatility Calibration")
-        st.markdown("Implied Volatility (IV) is the volatility value σ* that, when plugged into Black-Scholes, reproduces the observed market price. It is the market's forward-looking estimate of uncertainty.")
-        st.markdown("### Calibration Problem")
-        st.markdown('<div class="formula-box"><b>Find σ* such that:</b><br><br>BS(S, K, T, r, σ*, q) = C_market<br><br>No closed-form inverse exists. Solved numerically using <b>Brent\'s root-finding method</b>:<br>→ Bracket: σ ∈ [0.001, 5.0]<br>→ Convergence: typically &lt; 100 iterations<br>→ Returns NaN if no solution exists</div>', unsafe_allow_html=True)
-        st.markdown("### Skew-Adjusted Market Price")
-        st.markdown('<div class="formula-box"><b>IV surface model:</b><br><br>IV(K, T) = IV_base + slope · (1 - K/S) + convexity · (1 - K/S)² + term · (T - 0.25)<br><br><b>Market price (skew-adjusted):</b><br>C_market = BS(S, K, T, r, IV(K,T), q)<br><br>This synthetic surface captures:<br>- <b>Put skew</b>: OTM puts have higher IV (crash protection demand)<br>- <b>Smile wings</b>: convexity lifts both OTM tails<br>- <b>Term structure</b>: longer maturities can carry higher or lower IV</div>', unsafe_allow_html=True)
+        st.markdown("## Implied Volatility & Skew")
+        st.markdown("This module shows how **volatility skew** distorts option prices relative to a flat Black-Scholes world. Instead of calibrating from a market price, it applies a synthetic skew surface on top of your input volatility σ.")
+        st.markdown("### Skew Surface Model")
+        st.markdown('<div class="formula-box"><b>IV(K, T) = σ  +  slope · (1 - K/S)  +  convexity · (1 - K/S)²  +  term · (T - 0.25)</b><br><br>- <b>σ</b> = your input volatility (flat BS assumption)<br>- <b>slope</b> controls put skew: positive → OTM puts get higher IV<br>- <b>convexity</b> lifts both wings (smile effect)<br>- <b>term</b> adjusts IV by maturity (centred on 3 months)<br><br><b>Market price (skew)</b> = BS(S, K, T, r, IV(K,T), q)<br><b>Theoretical price (flat)</b> = BS(S, K, T, r, σ, q)<br><b>Price gap</b> = Market - Theoretical = pure skew impact</div>', unsafe_allow_html=True)
         st.markdown("### Output Metrics")
-        st.markdown("| Metric | Meaning |\n|---|---|\n| Implied Vol (calibrated) | σ* from observed market price |\n| Skew-adjusted IV | IV(K,T) from the surface model |\n| Market price (skew) | BS price using skew-adjusted IV — reflects real market dynamics |\n| Theoretical price (flat) | BS price using input σ — assumes flat vol, no skew |\n| Price gap | Difference between market and theoretical — measures skew impact |\n| Vega (flat σ) | Sensitivity using input vol |\n| Vega (skew IV) | Sensitivity using skew-adjusted vol |")
+        st.markdown("| Metric | Meaning |\n|---|---|\n| Input σ | Your flat vol hypothesis |\n| Skew-adjusted IV | IV(K,T) from the surface model |\n| IV shift | Difference between skew IV and flat σ |\n| Theoretical (flat σ) | BS price assuming constant vol |\n| Market price (skew IV) | BS price with skew-adjusted vol |\n| Price gap | Dollar impact of the skew |")
         st.markdown("### Volatility Skew Chart")
-        st.markdown("Plots IV against **moneyness** (K/S) for calls and puts.\n- **Flat** — BS world: constant IV (never observed in practice)\n- **Downward slope** — typical equity put skew (crash insurance demand)\n- **Smile** — elevated OTM IV on both sides, common in FX\n\n> Skew here is synthetic — illustrates mechanics, not real market data.")
+        st.markdown("Plots IV against **moneyness** (K/S) for the skew surface vs flat σ.\n- **Downward slope** — typical equity put skew (crash insurance demand)\n- **Smile** — elevated OTM IV on both sides, common in FX\n- **Red dashed line** — flat σ from sidebar (BS world)\n\n> Skew here is synthetic — illustrates mechanics, not real market data.")
         st.markdown("### Term Structure Chart")
         st.markdown("Plots IV against **maturity** for a fixed strike.\n- **Upward sloping** — calm markets, longer-dated options carry more premium\n- **Inverted** — short-term stress or upcoming event (earnings, central bank)\n- **Flat** — uniform uncertainty across maturities")
+        st.markdown("### Price Impact Chart")
+        st.markdown("Shows option price across strikes for both market (skew) and theoretical (flat).\n- **Cyan curve** — market price with skew-adjusted IV\n- **Red dashed** — theoretical price with flat σ\n- **Shaded area** — the dollar cost of ignoring skew\n\n> Wide gap on OTM puts = expensive downside protection.")
 
     with doc_tab4:
         st.markdown("## Strategy Backtesting")
@@ -417,9 +479,11 @@ if st.session_state.page == "docs":
 
 elif st.session_state.page == "app":
 
-    title_map = {"Pricing": f"Derivatives Analytics — {pricing_method}",
-                 "Implied Volatility": "Implied Volatility Calibrator",
-                 "Backtesting": "Strategy Backtester & Risk Analysis"}
+    title_map = {
+        "Pricing": f"Derivatives Analytics — {pricing_method}",
+        "Implied Volatility": "Implied Volatility & Skew Impact",
+        "Backtesting": "Strategy Backtester & Risk Analysis"
+    }
     st.markdown(f"# {title_map[mode]}")
     st.markdown('<div class="author-link">by <a href="https://www.linkedin.com/in/arthurcotten/">Arthur Cotten</a> • <a href="https://github.com/arthurcotten">@arthurcotten</a></div>', unsafe_allow_html=True)
     st.markdown("---")
@@ -429,24 +493,31 @@ elif st.session_state.page == "app":
     # ── PRICING ───────────────────────────────────────────────────────────────
     if mode == "Pricing":
         if pricing_method == "Black-Scholes":
-            price=bs(S,K,T,r,sigma,q,opt); g=greeks(S,K,T,r,sigma,q,opt)
-            std_error=None; mc_paths=None
+            price = bs(S, K, T, r, sigma, q, opt)
+            g = greeks(S, K, T, r, sigma, q, opt)
+            std_error = None
+            mc_paths = None
         else:
             with st.spinner("Running Monte Carlo..."):
                 try:
-                    mc=monte_carlo_pricer_cached(S,K,T,r,sigma,q,opt,n_sims,n_steps,antithetic,int(seed))
-                    price=mc["price"]; std_error=mc["std_error"]; mc_paths=mc["paths"]
-                    g={k:mc[k] for k in ["delta","gamma","vega","theta","rho"]}
+                    mc = monte_carlo_pricer_cached(S, K, T, r, sigma, q, opt, n_sims, n_steps, antithetic, int(seed))
+                    price = mc["price"]
+                    std_error = mc["std_error"]
+                    mc_paths = mc["paths"]
+                    g = {k: mc[k] for k in ["delta", "gamma", "vega", "theta", "rho"]}
                 except Exception as e:
-                    st.error(f"Monte Carlo error: {e}"); st.stop()
+                    st.error(f"Monte Carlo error: {e}")
+                    st.stop()
 
-        prob=prob_itm(S,K,T,r,sigma,q,opt)
-        cost=prem if prem>0 else price
-        be=(K+cost) if opt=="call" else (K-cost)
-        intr=max(S-K,0) if opt=="call" else max(K-S,0); tv=price-intr
-        mon=S/K; mlbl="ATM" if abs(mon-1)<0.01 else ("ITM" if (opt=="call" and mon>1) or (opt=="put" and mon<1) else "OTM")
+        prob = prob_itm(S, K, T, r, sigma, q, opt)
+        cost = prem if prem > 0 else price
+        be = (K + cost) if opt == "call" else (K - cost)
+        intr = max(S-K, 0) if opt == "call" else max(K-S, 0)
+        tv = price - intr
+        mon = S / K
+        mlbl = "ATM" if abs(mon-1) < 0.01 else ("ITM" if (opt == "call" and mon > 1) or (opt == "put" and mon < 1) else "OTM")
 
-        c1,c2,c3,c4,c5,c6=st.columns(6)
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         c1.metric("Price",      f"${price:.4f}")
         c2.metric("Std Error" if std_error else "Break-even", f"${std_error:.4f}" if std_error else f"${be:.2f}")
         c3.metric("Prob ITM",   f"{prob*100:.1f}%")
@@ -454,257 +525,303 @@ elif st.session_state.page == "app":
         c5.metric("Moneyness",  mlbl)
         c6.metric("Intrinsic",  f"${intr:.4f}")
 
-        st.markdown("---"); st.markdown("### Greeks")
-        g1,g2,g3,g4,g5=st.columns(5)
-        g1.metric("Delta",f"{g['delta']:+.5f}"); g2.metric("Gamma",f"{g['gamma']:.6f}")
-        g3.metric("Vega", f"{g['vega']:.5f}");  g4.metric("Theta",f"{g['theta']:+.5f}")
-        g5.metric("Rho",  f"{g['rho']:+.5f}")
+        st.markdown("---")
+        st.markdown("### Greeks")
+        g1, g2, g3, g4, g5 = st.columns(5)
+        g1.metric("Delta", f"{g['delta']:+.5f}")
+        g2.metric("Gamma", f"{g['gamma']:.6f}")
+        g3.metric("Vega",  f"{g['vega']:.5f}")
+        g4.metric("Theta", f"{g['theta']:+.5f}")
+        g5.metric("Rho",   f"{g['rho']:+.5f}")
 
         st.markdown("---")
-        alr=[]
-        if T<7/365:              alr.append("⚠️ Maturity < 7 days")
-        if abs(g["delta"])<0.10: alr.append("⚠️ Delta very low")
-        if tv<0.005:             alr.append("⚠️ Time value near zero")
-        if prob<0.15:            alr.append("⚠️ Prob ITM < 15%")
-        for a in alr: st.warning(a)
-        if not alr: st.success("✓ OK")
+        alr = []
+        if T < 7/365:              alr.append("⚠️ Maturity < 7 days")
+        if abs(g["delta"]) < 0.10: alr.append("⚠️ Delta very low")
+        if tv < 0.005:             alr.append("⚠️ Time value near zero")
+        if prob < 0.15:            alr.append("⚠️ Prob ITM < 15%")
+        for a in alr:
+            st.warning(a)
+        if not alr:
+            st.success("✓ OK")
 
-        Sr=np.linspace(S*0.7,S*1.3,300)
-        col1,col2=st.columns([2,1])
+        Sr = np.linspace(S*0.7, S*1.3, 300)
+        col1, col2 = st.columns([2, 1])
         with col1:
-            fig,ax=plt.subplots(figsize=(4.2,2.4),facecolor=BG); ax.set_facecolor(PANEL)
-            pnl=(np.maximum(Sr-K,0)-cost if opt=="call" else np.maximum(K-Sr,0)-cost)
-            ym,yM=pnl.min(),pnl.max(); yp=(yM-ym)*0.12
-            ax.fill_between(Sr,pnl,0,where=pnl>=0,alpha=0.12,color=GREEN,zorder=1)
-            ax.fill_between(Sr,pnl,0,where=pnl<0, alpha=0.12,color=RED,  zorder=1)
-            ax.plot(Sr,pnl,color=ACCENT,lw=1.2,zorder=3)
-            ax.axhline(0,color=GRAY,lw=0.5,alpha=0.5,zorder=2)
+            fig, ax = plt.subplots(figsize=(4.2, 2.4), facecolor=BG)
+            ax.set_facecolor(PANEL)
+            pnl = (np.maximum(Sr-K, 0) - cost if opt == "call" else np.maximum(K-Sr, 0) - cost)
+            ym, yM = pnl.min(), pnl.max()
+            yp = (yM - ym) * 0.12
+            ax.fill_between(Sr, pnl, 0, where=pnl >= 0, alpha=0.12, color=GREEN, zorder=1)
+            ax.fill_between(Sr, pnl, 0, where=pnl < 0,  alpha=0.12, color=RED,   zorder=1)
+            ax.plot(Sr, pnl, color=ACCENT, lw=1.2, zorder=3)
+            ax.axhline(0, color=GRAY, lw=0.5, alpha=0.5, zorder=2)
             vline(ax, K,  YELLOW)
             vline(ax, be, GREEN)
             vline(ax, S,  "#9ca3af")
-            ax.set_ylim(ym-yp*0.8, yM+yp)
+            ax.set_ylim(ym - yp*0.8, yM + yp)
             label_xaxis(ax, [
                 (K,  f"K={K:.0f}",   YELLOW),
                 (be, f"BE={be:.2f}", GREEN),
                 (S,  f"S={S:.0f}",   "#9ca3af"),
             ])
-            sty(ax,f"P&L  ·  {opt.upper()}","Spot ($)","P&L ($)")
+            sty(ax, f"P&L  ·  {opt.upper()}", "Spot ($)", "P&L ($)")
             fig.tight_layout(pad=1.2)
-            st.pyplot(fig,use_container_width=True); plt.close(fig)
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
 
         with col2:
-            if pricing_method=="Monte Carlo" and mc_paths is not None:
-                fig2,ax2=plt.subplots(figsize=(3.1,2.4),facecolor=BG); ax2.set_facecolor(PANEL)
-                ax2.hist(mc_paths,bins=34,color=CYAN,alpha=0.6,edgecolor="none")
-                yh=ax2.get_ylim()[1]
+            if pricing_method == "Monte Carlo" and mc_paths is not None:
+                fig2, ax2 = plt.subplots(figsize=(3.1, 2.4), facecolor=BG)
+                ax2.set_facecolor(PANEL)
+                ax2.hist(mc_paths, bins=34, color=CYAN, alpha=0.6, edgecolor="none")
                 vline(ax2, K, YELLOW)
-                ax2.legend(handles=[legend_entry(YELLOW,f"K ${K:.0f}")],
-                           fontsize=6.5,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.85,loc="upper left")
-                sty(ax2,"Distribution  S(T)","Terminal price ($)","Freq")
-                fig2.tight_layout(pad=1.2); st.pyplot(fig2,use_container_width=True); plt.close(fig2)
+                ax2.legend(
+                    handles=[legend_entry(YELLOW, f"K ${K:.0f}")],
+                    fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b",
+                    labelcolor=TEXT, framealpha=0.85, loc="upper left")
+                sty(ax2, "Distribution  S(T)", "Terminal price ($)", "Freq")
+                fig2.tight_layout(pad=1.2)
+                st.pyplot(fig2, use_container_width=True)
+                plt.close(fig2)
 
     # ── IMPLIED VOLATILITY ────────────────────────────────────────────────────
     elif mode == "Implied Volatility":
 
-        # 1. Calibrate IV from user-entered market price
-        with st.spinner("Calibrating..."):
-            iv = implied_volatility(market_price, S, K, T, r, q, opt)
+        # Skew-adjusted IV for this strike/maturity
+        iv_skew = skewed_iv(sigma, S, K, T, skew_slope, skew_convexity, term_slope)
 
-        if np.isnan(iv):
-            st.error("❌ Cannot calibrate IV — check inputs")
+        # Prices
+        theo_price_flat = bs(S, K, T, r, sigma, q, opt)
+        market_price_skew = bs(S, K, T, r, iv_skew, q, opt)
+        price_gap = market_price_skew - theo_price_flat
+
+        # ── Metrics ──
+        st.markdown("### Volatility")
+        v1, v2, v3 = st.columns(3)
+        v1.metric("Input σ (flat)",   f"{sigma*100:.2f}%")
+        v2.metric("Skew-adjusted IV", f"{iv_skew*100:.2f}%")
+        v3.metric("IV shift",         f"{(iv_skew - sigma)*100:+.2f}%")
+
+        st.markdown("### Pricing impact")
+        p1, p2, p3 = st.columns(3)
+        p1.metric("Theoretical (flat σ)",   f"${theo_price_flat:.4f}")
+        p2.metric("Market price (skew IV)", f"${market_price_skew:.4f}")
+        p3.metric("Price gap",              f"${price_gap:+.4f}")
+
+        st.markdown("---")
+        if abs(price_gap) < 0.01:
+            st.success("✓ Skew impact is negligible — flat vol is a reasonable approximation here.")
+        elif price_gap > 0:
+            st.warning(f"⚠️ Skew adds **${price_gap:.4f}** to the price vs flat BS.")
         else:
-            # 2. Compute skew-adjusted IV for this strike/maturity
-            iv_skew = skewed_iv(iv, S, K, T, skew_slope, skew_convexity, term_slope)
+            st.info(f"ℹ️ Skew reduces the price by **${abs(price_gap):.4f}** vs flat BS.")
 
-            # 3. Prices
-            theo_price_flat = bs(S, K, T, r, sigma, q, opt)       # BS with sidebar σ (flat world)
-            market_price_skew = bs(S, K, T, r, iv_skew, q, opt)   # BS with skew-adjusted IV
-            price_gap = market_price_skew - theo_price_flat
+        # ── CHARTS ────────────────────────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("### Volatility Surface")
+        cs, ct = st.columns(2)
 
-            # 4. Greeks with both vols
-            g_flat = greeks(S, K, T, r, sigma, q, opt)
-            g_skew = greeks(S, K, T, r, iv_skew, q, opt)
+        with cs:
+            stks = np.linspace(S*0.7, S*1.3, 40)
+            iv_skew_curve = [skewed_iv(sigma, S, k, T, skew_slope, skew_convexity, term_slope) for k in stks]
+            iv_flat_line = [sigma] * len(stks)
 
-            # ── METRICS ROW 1: Volatilities ──
-            st.markdown("### Volatility")
-            v1, v2, v3, v4 = st.columns(4)
-            v1.metric("Input σ",              f"{sigma*100:.2f}%")
-            v2.metric("Calibrated IV",        f"{iv*100:.2f}%")
-            v3.metric("Skew-adjusted IV",     f"{iv_skew*100:.2f}%")
-            v4.metric("IV shift (skew - flat)", f"{(iv_skew - sigma)*100:+.2f}%")
+            fig_s, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG)
+            ax.set_facecolor(PANEL)
+            ax.plot([k/S for k in stks], [v*100 for v in iv_skew_curve],
+                    color=CYAN, lw=1.2, marker='o', markersize=2.5, markeredgewidth=0, label='Skew IV')
+            ax.plot([k/S for k in stks], [v*100 for v in iv_flat_line],
+                    color=RED, lw=0.8, linestyle='--', alpha=0.6, label=f'Flat σ = {sigma*100:.1f}%')
+            ax.axvline(1.0, color=GRAY, lw=0.5, linestyle=":", alpha=0.6)
+            ax.axvline(K/S, color=YELLOW, lw=0.6, linestyle="--", alpha=0.7)
+            ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.8)
+            sty(ax, "Skew  ·  IV vs Flat σ", "Moneyness (K/S)", "IV (%)")
+            fig_s.tight_layout(pad=1.2)
+            st.pyplot(fig_s, use_container_width=True)
+            plt.close(fig_s)
 
-            # ── METRICS ROW 2: Prices ──
-            st.markdown("### Pricing impact")
-            p1, p2, p3, p4 = st.columns(4)
-            p1.metric("Theoretical (flat σ)",    f"${theo_price_flat:.4f}")
-            p2.metric("Market price (skew IV)",  f"${market_price_skew:.4f}")
-            p3.metric("Price gap",               f"${price_gap:+.4f}")
-            p4.metric("Gap (%)",                 f"{(price_gap/theo_price_flat*100):+.2f}%" if theo_price_flat > 0.0001 else "N/A")
+        with ct:
+            mats = np.linspace(max(T, 7/365), min(T*3, 2.0), 20)
+            iv_term = [skewed_iv(sigma, S, K, m, skew_slope, skew_convexity, term_slope) for m in mats]
+            iv_flat_term = [sigma] * len(mats)
 
-            # ── METRICS ROW 3: Greeks comparison ──
-            st.markdown("### Greeks comparison")
-            gc1, gc2, gc3, gc4, gc5 = st.columns(5)
-            gc1.metric("Delta (flat / skew)", f"{g_flat['delta']:+.4f} / {g_skew['delta']:+.4f}")
-            gc2.metric("Gamma (flat / skew)", f"{g_flat['gamma']:.5f} / {g_skew['gamma']:.5f}")
-            gc3.metric("Vega (flat / skew)",  f"{g_flat['vega']:.4f} / {g_skew['vega']:.4f}")
-            gc4.metric("Theta (flat / skew)", f"{g_flat['theta']:+.4f} / {g_skew['theta']:+.4f}")
-            gc5.metric("Rho (flat / skew)",   f"{g_flat['rho']:+.4f} / {g_skew['rho']:+.4f}")
+            fig_t, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG)
+            ax.set_facecolor(PANEL)
+            ax.plot([m*365 for m in mats], [v*100 for v in iv_term],
+                    color=CYAN, lw=1.2, marker='o', markersize=2.5, markeredgewidth=0, label='Skew IV')
+            ax.plot([m*365 for m in mats], [v*100 for v in iv_flat_term],
+                    color=RED, lw=0.8, linestyle='--', alpha=0.6, label=f'Flat σ = {sigma*100:.1f}%')
+            ax.axvline(T*365, color=YELLOW, lw=0.6, linestyle="--", alpha=0.7)
+            ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.8)
+            sty(ax, "Term Structure  ·  IV vs Flat σ", "Maturity (days)", "IV (%)")
+            fig_t.tight_layout(pad=1.2)
+            st.pyplot(fig_t, use_container_width=True)
+            plt.close(fig_t)
 
-            # ── Interpretation ──
-            st.markdown("---")
-            if abs(price_gap) < 0.01:
-                st.success("✓ Skew impact is negligible — flat vol is a reasonable approximation here.")
-            elif price_gap > 0:
-                st.warning(f"⚠️ Skew adds **${price_gap:.4f}** to the price. The market prices this option higher than flat BS suggests — typical for OTM puts or high-demand strikes.")
-            else:
-                st.info(f"ℹ️ Skew reduces the price by **${abs(price_gap):.4f}**. Flat BS overestimates the market price at this strike/maturity.")
-
-            # ── CHARTS ────────────────────────────────────────────────────────
-            st.markdown("---"); st.markdown("### Volatility Surface")
-            cs, ct = st.columns(2)
-
-            with cs:
-                stks = np.linspace(S*0.7, S*1.3, 40)
-                iv_skew_curve_c = [skewed_iv(iv, S, k, T, skew_slope, skew_convexity, term_slope) for k in stks]
-                iv_skew_curve_p = [skewed_iv(iv, S, k, T, skew_slope, skew_convexity, term_slope) for k in stks]
-                iv_flat_line    = [sigma] * len(stks)
-
-                fig_s, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG); ax.set_facecolor(PANEL)
-                ax.plot([k/S for k in stks], [v*100 for v in iv_skew_curve_c], color=CYAN, lw=1.2, marker='o', markersize=2.5, markeredgewidth=0, label='Skew IV (calls)')
-                ax.plot([k/S for k in stks], [v*100 for v in iv_skew_curve_p], color=PURPLE, lw=1.2, marker='s', markersize=2.5, markeredgewidth=0, label='Skew IV (puts)', alpha=0.7)
-                ax.plot([k/S for k in stks], [v*100 for v in iv_flat_line], color=RED, lw=0.8, linestyle='--', alpha=0.6, label=f'Flat σ = {sigma*100:.1f}%')
-                ax.axvline(1.0, color=GRAY, lw=0.5, linestyle=":", alpha=0.6)
-                ax.axvline(K/S, color=YELLOW, lw=0.6, linestyle="--", alpha=0.7)
-                ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.8)
-                sty(ax, "Skew  ·  IV vs Flat σ", "Moneyness (K/S)", "IV (%)")
-                fig_s.tight_layout(pad=1.2); st.pyplot(fig_s, use_container_width=True); plt.close(fig_s)
-
-            with ct:
-                mats = np.linspace(max(T, 7/365), min(T*3, 2.0), 20)
-                iv_term = [skewed_iv(iv, S, K, m, skew_slope, skew_convexity, term_slope) for m in mats]
-                iv_flat_term = [sigma] * len(mats)
-
-                fig_t, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG); ax.set_facecolor(PANEL)
-                ax.plot([m*365 for m in mats], [v*100 for v in iv_term], color=CYAN, lw=1.2, marker='o', markersize=2.5, markeredgewidth=0, label='Skew IV')
-                ax.plot([m*365 for m in mats], [v*100 for v in iv_flat_term], color=RED, lw=0.8, linestyle='--', alpha=0.6, label=f'Flat σ = {sigma*100:.1f}%')
-                ax.axvline(T*365, color=YELLOW, lw=0.6, linestyle="--", alpha=0.7)
-                ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.8)
-                sty(ax, "Term Structure  ·  IV vs Flat σ", "Maturity (days)", "IV (%)")
-                fig_t.tight_layout(pad=1.2); st.pyplot(fig_t, use_container_width=True); plt.close(fig_t)
-
-            # ── PRICE SURFACE: Market vs Theoretical across strikes ──
-            st.markdown("---"); st.markdown("### Price impact across strikes")
-            fig_p, ax = plt.subplots(figsize=(8, 3.4), facecolor=BG); ax.set_facecolor(PANEL)
-            stk_range = np.linspace(S*0.8, S*1.2, 50)
-            prices_flat = [bs(S, k, T, r, sigma, q, opt) for k in stk_range]
-            prices_skew = [bs(S, k, T, r, skewed_iv(iv, S, k, T, skew_slope, skew_convexity, term_slope), q, opt) for k in stk_range]
-            ax.plot(stk_range, prices_flat, color=RED,  lw=1.0, linestyle='--', label=f'Theoretical (flat σ={sigma*100:.0f}%)')
-            ax.plot(stk_range, prices_skew, color=CYAN, lw=1.2, label='Market (skew-adjusted)')
-            ax.fill_between(stk_range, prices_flat, prices_skew, alpha=0.15, color=CYAN)
-            vline(ax, K, YELLOW)
-            vline(ax, S, "#9ca3af")
-            label_xaxis(ax, [
-                (K, f"K={K:.0f}", YELLOW),
-                (S, f"S={S:.0f}", "#9ca3af"),
-            ])
-            ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.85, loc="upper right")
-            sty(ax, f"Option Price  ·  Market vs Theoretical  ·  {opt.upper()}", "Strike ($)", "Price ($)")
-            fig_p.tight_layout(pad=1.2); st.pyplot(fig_p, use_container_width=True); plt.close(fig_p)
+        # ── Price impact across strikes ──
+        st.markdown("---")
+        st.markdown("### Price impact across strikes")
+        fig_p, ax = plt.subplots(figsize=(8, 3.4), facecolor=BG)
+        ax.set_facecolor(PANEL)
+        stk_range = np.linspace(S*0.8, S*1.2, 50)
+        prices_flat = [bs(S, k, T, r, sigma, q, opt) for k in stk_range]
+        prices_skew = [bs(S, k, T, r, skewed_iv(sigma, S, k, T, skew_slope, skew_convexity, term_slope), q, opt) for k in stk_range]
+        ax.plot(stk_range, prices_flat, color=RED, lw=1.0, linestyle='--', label=f'Theoretical (flat σ={sigma*100:.0f}%)')
+        ax.plot(stk_range, prices_skew, color=CYAN, lw=1.2, label='Market (skew-adjusted)')
+        ax.fill_between(stk_range, prices_flat, prices_skew, alpha=0.15, color=CYAN)
+        vline(ax, K, YELLOW)
+        vline(ax, S, "#9ca3af")
+        label_xaxis(ax, [
+            (K, f"K={K:.0f}", YELLOW),
+            (S, f"S={S:.0f}", "#9ca3af"),
+        ])
+        ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.85, loc="upper right")
+        sty(ax, f"Option Price  ·  Market vs Theoretical  ·  {opt.upper()}", "Strike ($)", "Price ($)")
+        fig_p.tight_layout(pad=1.2)
+        st.pyplot(fig_p, use_container_width=True)
+        plt.close(fig_p)
 
     # ── BACKTESTING ───────────────────────────────────────────────────────────
     elif mode == "Backtesting":
 
         # ── INTERNAL VALIDATORS ───────────────────────────────────────────────
         val_errors, val_warnings, val_ok = [], [], []
-        call_p = bs(S,K,T,r,sigma,q,"call"); put_p = bs(S,K,T,r,sigma,q,"put")
-        pcp_err = abs((call_p-put_p) - (S*np.exp(-q*T)-K*np.exp(-r*T)))
-        if pcp_err < 1e-6: val_ok.append(f"Put-Call Parity ✓  (error = {pcp_err:.2e})")
-        else: val_errors.append(f"Put-Call Parity violation: error = {pcp_err:.4f}")
-        g_check = greeks(S,K,T,r,sigma,q,"call")
-        if 0 <= g_check["delta"] <= 1: val_ok.append(f"Call Delta in [0,1] ✓  ({g_check['delta']:.4f})")
-        else: val_errors.append(f"Call Delta out of bounds: {g_check['delta']:.4f}")
-        intr_check = max(S-K,0)
-        if call_p >= intr_check-1e-6: val_ok.append(f"Call price >= intrinsic ✓  (${call_p:.4f} >= ${intr_check:.4f})")
-        else: val_errors.append(f"Call price below intrinsic: ${call_p:.4f} < ${intr_check:.4f}")
+        call_p = bs(S, K, T, r, sigma, q, "call")
+        put_p = bs(S, K, T, r, sigma, q, "put")
+        pcp_err = abs((call_p - put_p) - (S*np.exp(-q*T) - K*np.exp(-r*T)))
+        if pcp_err < 1e-6:
+            val_ok.append(f"Put-Call Parity ✓  (error = {pcp_err:.2e})")
+        else:
+            val_errors.append(f"Put-Call Parity violation: error = {pcp_err:.4f}")
+        g_check = greeks(S, K, T, r, sigma, q, "call")
+        if 0 <= g_check["delta"] <= 1:
+            val_ok.append(f"Call Delta in [0,1] ✓  ({g_check['delta']:.4f})")
+        else:
+            val_errors.append(f"Call Delta out of bounds: {g_check['delta']:.4f}")
+        intr_check = max(S-K, 0)
+        if call_p >= intr_check - 1e-6:
+            val_ok.append(f"Call price >= intrinsic ✓  (${call_p:.4f} >= ${intr_check:.4f})")
+        else:
+            val_errors.append(f"Call price below intrinsic: ${call_p:.4f} < ${intr_check:.4f}")
         tv_check = call_p - intr_check
-        if tv_check >= 0: val_ok.append(f"Time value >= 0 ✓  (${tv_check:.4f})")
-        else: val_errors.append(f"Negative time value: ${tv_check:.4f}")
-        if g_check["gamma"] > 0: val_ok.append(f"Gamma > 0 ✓  ({g_check['gamma']:.6f})")
-        else: val_errors.append(f"Gamma <= 0: {g_check['gamma']:.6f}")
-        if g_check["theta"] < 0: val_ok.append(f"Theta < 0 ✓  ({g_check['theta']:.5f} /day)")
-        else: val_warnings.append(f"Theta positive for long option: {g_check['theta']:.5f}")
-        if sigma <= 0: val_errors.append("Volatility must be > 0")
-        elif sigma > 2.0: val_warnings.append(f"Very high volatility: {sigma*100:.0f}% — results may be unreliable")
-        if T <= 0: val_errors.append("Maturity must be > 0")
-        if S <= 0 or K <= 0: val_errors.append("Spot and Strike must be > 0")
+        if tv_check >= 0:
+            val_ok.append(f"Time value >= 0 ✓  (${tv_check:.4f})")
+        else:
+            val_errors.append(f"Negative time value: ${tv_check:.4f}")
+        if g_check["gamma"] > 0:
+            val_ok.append(f"Gamma > 0 ✓  ({g_check['gamma']:.6f})")
+        else:
+            val_errors.append(f"Gamma <= 0: {g_check['gamma']:.6f}")
+        if g_check["theta"] < 0:
+            val_ok.append(f"Theta < 0 ✓  ({g_check['theta']:.5f} /day)")
+        else:
+            val_warnings.append(f"Theta positive for long option: {g_check['theta']:.5f}")
+        if sigma <= 0:
+            val_errors.append("Volatility must be > 0")
+        elif sigma > 2.0:
+            val_warnings.append(f"Very high volatility: {sigma*100:.0f}% — results may be unreliable")
+        if T <= 0:
+            val_errors.append("Maturity must be > 0")
+        if S <= 0 or K <= 0:
+            val_errors.append("Spot and Strike must be > 0")
 
         with st.expander("✅ Internal Validators", expanded=False):
-            for e in val_errors: st.error(f"❌  {e}")
-            for w in val_warnings: st.warning(f"⚠️  {w}")
-            for o in val_ok: st.success(f"✓  {o}")
+            for e in val_errors:
+                st.error(f"❌  {e}")
+            for w in val_warnings:
+                st.warning(f"⚠️  {w}")
+            for o in val_ok:
+                st.success(f"✓  {o}")
             st.markdown(f"**Summary:**  {len(val_ok)} checks passed · {len(val_warnings)} warnings · {len(val_errors)} errors\n\n| Check | Description |\n|---|---|\n| Put-Call Parity | C - P = S·e^(-qT) - K·e^(-rT) |\n| Delta bounds | Call Delta in [0,1], Put Delta in [-1,0] |\n| Price >= intrinsic | Option cannot be worth less than exercise value |\n| Time value >= 0 | Intrinsic is the floor |\n| Gamma > 0 | Always true for long options |\n| Theta < 0 | Long options lose value with time |\n| Input ranges | Vol, spot, strike, maturity must be valid |")
 
         if val_errors:
-            st.error("❌ Critical validation errors — results may be incorrect."); st.stop()
+            st.error("❌ Critical validation errors — results may be incorrect.")
+            st.stop()
 
         with st.spinner("Running backtest..."):
             try:
-                df = backtest_strategy_cached(strategy,S,K,T,r,sigma,q,backtest_days,n_simulations)
+                df = backtest_strategy_cached(strategy, S, K, T, r, sigma, q, backtest_days, n_simulations)
             except Exception as e:
-                st.error(f"Error: {e}"); st.stop()
+                st.error(f"Error: {e}")
+                st.stop()
 
-        mp=df['pnl'].mean(); med=df['pnl'].median(); sdp=df['pnl'].std()
-        wr=(df['pnl']>0).sum()/len(df)*100; mg=df['pnl'].max(); ml=df['pnl'].min()
-        shr=(mp/sdp*np.sqrt(252)) if sdp>0 else 0
+        mp = df['pnl'].mean()
+        med = df['pnl'].median()
+        sdp = df['pnl'].std()
+        wr = (df['pnl'] > 0).sum() / len(df) * 100
+        mg = df['pnl'].max()
+        ml = df['pnl'].min()
+        shr = (mp / sdp * np.sqrt(252)) if sdp > 0 else 0
 
         st.markdown("### Performance")
-        c1,c2,c3,c4,c5,c6=st.columns(6)
-        c1.metric("Avg P&L",   f"${mp:.2f}"); c2.metric("Median P&L",f"${med:.2f}")
-        c3.metric("Win Rate",  f"{wr:.1f}%"); c4.metric("Max Gain",  f"${mg:.2f}")
-        c5.metric("Max Loss",  f"${ml:.2f}"); c6.metric("Sharpe",    f"{shr:.3f}")
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        c1.metric("Avg P&L",    f"${mp:.2f}")
+        c2.metric("Median P&L", f"${med:.2f}")
+        c3.metric("Win Rate",   f"{wr:.1f}%")
+        c4.metric("Max Gain",   f"${mg:.2f}")
+        c5.metric("Max Loss",   f"${ml:.2f}")
+        c6.metric("Sharpe",     f"{shr:.3f}")
 
         st.markdown("---")
-        ch,cs2=st.columns(2)
+        ch, cs2 = st.columns(2)
         with ch:
-            fig_h,ax=plt.subplots(figsize=(4.8,3.4),facecolor=BG); ax.set_facecolor(PANEL)
-            pa=df['pnl'].values; bns=np.linspace(pa.min(),pa.max(),44)
-            ax.hist(pa[pa>=0],bins=bns,color=GREEN,alpha=0.55,edgecolor="none")
-            ax.hist(pa[pa<0], bins=bns,color=RED,  alpha=0.55,edgecolor="none")
-            yh2=ax.get_ylim()[1]
-            ax.axvline(mp,color=ACCENT,lw=0.8,linestyle="--",alpha=0.9)
-            ax.axvline(0, color=GRAY,  lw=0.5,alpha=0.6)
-            ax.set_ylim(0,yh2*1.12)
-            ax.legend(handles=[
-                legend_entry(ACCENT, f"Avg  ${mp:.2f}"),
-                legend_entry(GRAY,   "BE  $0.00", linestyle="-"),
-            ], fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.85, loc="upper left")
-            sty(ax,f"P&L Distribution  ·  {strategy.replace('_',' ').title()}","P&L ($)","Freq")
-            fig_h.tight_layout(pad=1.2); st.pyplot(fig_h,use_container_width=True); plt.close(fig_h)
+            fig_h, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG)
+            ax.set_facecolor(PANEL)
+            pa = df['pnl'].values
+            bns = np.linspace(pa.min(), pa.max(), 44)
+            ax.hist(pa[pa >= 0], bins=bns, color=GREEN, alpha=0.55, edgecolor="none")
+            ax.hist(pa[pa < 0],  bins=bns, color=RED,   alpha=0.55, edgecolor="none")
+            yh2 = ax.get_ylim()[1]
+            ax.axvline(mp, color=ACCENT, lw=0.8, linestyle="--", alpha=0.9)
+            ax.axvline(0,  color=GRAY,   lw=0.5, alpha=0.6)
+            ax.set_ylim(0, yh2 * 1.12)
+            ax.legend(
+                handles=[
+                    legend_entry(ACCENT, f"Avg  ${mp:.2f}"),
+                    legend_entry(GRAY,   "BE  $0.00", linestyle="-"),
+                ],
+                fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b",
+                labelcolor=TEXT, framealpha=0.85, loc="upper left")
+            sty(ax, f"P&L Distribution  ·  {strategy.replace('_', ' ').title()}", "P&L ($)", "Freq")
+            fig_h.tight_layout(pad=1.2)
+            st.pyplot(fig_h, use_container_width=True)
+            plt.close(fig_h)
 
         with cs2:
-            fig_sc,ax=plt.subplots(figsize=(4.8,3.4),facecolor=BG); ax.set_facecolor(PANEL)
-            sp=df['final_spot'].values; pn=df['pnl'].values
-            ax.scatter(sp[pn>=0],pn[pn>=0],alpha=0.45,s=8,color=GREEN, edgecolors="none",zorder=3)
-            ax.scatter(sp[pn<0], pn[pn<0], alpha=0.45,s=8,color=PURPLE,edgecolors="none",zorder=3)
-            ys,yS=pn.min(),pn.max(); yps=(yS-ys)*0.12
-            ax.axhline(0,color=GRAY,lw=0.5,alpha=0.55,zorder=2)
-            vline(ax,S,YELLOW); vline(ax,K,"#9ca3af")
-            ax.set_ylim(ys-yps*0.8,yS+yps)
+            fig_sc, ax = plt.subplots(figsize=(4.8, 3.4), facecolor=BG)
+            ax.set_facecolor(PANEL)
+            sp = df['final_spot'].values
+            pn = df['pnl'].values
+            ax.scatter(sp[pn >= 0], pn[pn >= 0], alpha=0.45, s=8, color=GREEN,  edgecolors="none", zorder=3)
+            ax.scatter(sp[pn < 0],  pn[pn < 0],  alpha=0.45, s=8, color=PURPLE, edgecolors="none", zorder=3)
+            ys, yS = pn.min(), pn.max()
+            yps = (yS - ys) * 0.12
+            ax.axhline(0, color=GRAY, lw=0.5, alpha=0.55, zorder=2)
+            vline(ax, S, YELLOW)
+            vline(ax, K, "#9ca3af")
+            ax.set_ylim(ys - yps*0.8, yS + yps)
             label_xaxis(ax, [
                 (S, f"S0={S:.0f}", YELLOW),
-                (K, f"K={K:.0f}", "#9ca3af"),
+                (K, f"K={K:.0f}",  "#9ca3af"),
             ])
-            ax.legend(handles=[
-                plt.Line2D([0],[0],marker='o',color='w',markerfacecolor=GREEN, markersize=5,label='Gain',linewidth=0),
-                plt.Line2D([0],[0],marker='o',color='w',markerfacecolor=PURPLE,markersize=5,label='Loss',linewidth=0),
-                legend_entry(GRAY, "BE $0.00", linestyle="-"),
-            ], fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.85, loc="upper left")
-            sty(ax,"P&L vs Final Spot","Final spot ($)","P&L ($)")
+            ax.legend(
+                handles=[
+                    plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=GREEN,  markersize=5, label='Gain', linewidth=0),
+                    plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=PURPLE, markersize=5, label='Loss', linewidth=0),
+                    legend_entry(GRAY, "BE $0.00", linestyle="-"),
+                ],
+                fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b",
+                labelcolor=TEXT, framealpha=0.85, loc="upper left")
+            sty(ax, "P&L vs Final Spot", "Final spot ($)", "P&L ($)")
             fig_sc.tight_layout(pad=1.2)
-            st.pyplot(fig_sc,use_container_width=True); plt.close(fig_sc)
+            st.pyplot(fig_sc, use_container_width=True)
+            plt.close(fig_sc)
 
-        st.markdown("---"); st.markdown("### Percentiles")
-        pcts=[5,25,50,75,95]
+        st.markdown("---")
+        st.markdown("### Percentiles")
+        pcts = [5, 25, 50, 75, 95]
         pct_rows = ""
         for p in pcts:
             pnl_val = df['pnl'].quantile(p/100)
@@ -730,62 +847,80 @@ elif st.session_state.page == "app":
 """, unsafe_allow_html=True)
 
         # ── DELTA HEDGING ─────────────────────────────────────────────────────
-        st.markdown("---"); st.markdown("### Delta Hedging Simulation")
+        st.markdown("---")
+        st.markdown("### Delta Hedging Simulation")
         st.markdown(f"*Rebalancing: **{hedge_freq}** — {hedge_n_paths} paths  ·  long {opt}*")
 
         with st.spinner("Running delta hedge simulation..."):
-            hres = delta_hedge_simulation(S,K,T,r,sigma,q,opt,backtest_days,hedge_n_paths,hedge_freq)
+            hres = delta_hedge_simulation(S, K, T, r, sigma, q, opt, backtest_days, hedge_n_paths, hedge_freq)
 
-        hp=hres["hedge_pnls"]; uhp=hres["unhedged_pnls"]; dps=hres["delta_paths"]
+        hp = hres["hedge_pnls"]
+        uhp = hres["unhedged_pnls"]
+        dps = hres["delta_paths"]
 
         hedge_val_ok = []
-        if abs(hp.mean()) < abs(uhp.mean())*0.5:
+        if abs(hp.mean()) < abs(uhp.mean()) * 0.5:
             hedge_val_ok.append(f"Hedge reduces avg P&L magnitude ✓  (hedged: ${hp.mean():.3f} vs unhedged: ${uhp.mean():.2f})")
         if hp.std() < uhp.std():
             hedge_val_ok.append(f"Hedge reduces P&L dispersion ✓  (std: ${hp.std():.3f} vs ${uhp.std():.2f})")
-        if abs(hres["entry_cost"] - bs(S,K,T,r,sigma,q,opt)) < 1e-4:
+        if abs(hres["entry_cost"] - bs(S, K, T, r, sigma, q, opt)) < 1e-4:
             hedge_val_ok.append(f"Entry cost matches BS price ✓  (${hres['entry_cost']:.4f})")
         if hedge_val_ok:
             with st.expander("✅ Hedge Validators", expanded=False):
-                for v in hedge_val_ok: st.success(f"✓  {v}")
+                for v in hedge_val_ok:
+                    st.success(f"✓  {v}")
 
-        hc1,hc2,hc3,hc4,hc5=st.columns(5)
+        hc1, hc2, hc3, hc4, hc5 = st.columns(5)
         hc1.metric("Avg Hedged P&L",   f"${hp.mean():.3f}")
         hc2.metric("Avg Unhedged P&L", f"${uhp.mean():.2f}")
         hc3.metric("Hedge Std Dev",    f"${hp.std():.3f}")
-        hc4.metric("Hedge Win Rate",   f"{(hp>0).sum()/len(hp)*100:.1f}%")
+        hc4.metric("Hedge Win Rate",   f"{(hp > 0).sum()/len(hp)*100:.1f}%")
         hc5.metric("Entry Cost",       f"${hres['entry_cost']:.4f}")
 
         st.markdown("> **Key insight:** Hedged P&L near zero confirms model consistency. Positive residual = realised vol exceeded implied vol (Gamma > Theta). Wider hedged distribution = greater discrete rebalancing error.")
 
-        col_hh,col_hs=st.columns(2)
+        col_hh, col_hs = st.columns(2)
         with col_hh:
-            fig_hh,ax=plt.subplots(figsize=(4.2,2.8),facecolor=BG); ax.set_facecolor(PANEL)
-            all_vals=np.concatenate([hp,uhp]); bins_h=np.linspace(all_vals.min(),all_vals.max(),40)
-            ax.hist(uhp,bins=bins_h,color=PURPLE,alpha=0.5,edgecolor="none",label="Unhedged")
-            ax.hist(hp, bins=bins_h,color=CYAN,  alpha=0.6,edgecolor="none",label="Delta-Hedged")
-            ax.axvline(0,        color=GRAY,lw=0.6,linestyle="-",alpha=0.7)
-            ax.axvline(hp.mean(),color=CYAN,lw=0.9,linestyle="--",alpha=0.9)
-            ax.legend(handles=[
-                legend_entry(PURPLE, "Unhedged"),
-                legend_entry(CYAN,   "Delta-Hedged"),
-                legend_entry(CYAN,   f"Avg ${hp.mean():.3f}"),
-                legend_entry(GRAY,   "BE $0.00", linestyle="-"),
-            ], fontsize=6.5,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.85,loc="upper left")
-            sty(ax,"P&L  ·  Hedged vs Unhedged","P&L ($)","Freq")
-            fig_hh.tight_layout(pad=1.2); st.pyplot(fig_hh,use_container_width=True); plt.close(fig_hh)
+            fig_hh, ax = plt.subplots(figsize=(4.2, 2.8), facecolor=BG)
+            ax.set_facecolor(PANEL)
+            all_vals = np.concatenate([hp, uhp])
+            bins_h = np.linspace(all_vals.min(), all_vals.max(), 40)
+            ax.hist(uhp, bins=bins_h, color=PURPLE, alpha=0.5, edgecolor="none", label="Unhedged")
+            ax.hist(hp,  bins=bins_h, color=CYAN,   alpha=0.6, edgecolor="none", label="Delta-Hedged")
+            ax.axvline(0,         color=GRAY, lw=0.6, linestyle="-",  alpha=0.7)
+            ax.axvline(hp.mean(), color=CYAN, lw=0.9, linestyle="--", alpha=0.9)
+            ax.legend(
+                handles=[
+                    legend_entry(PURPLE, "Unhedged"),
+                    legend_entry(CYAN,   "Delta-Hedged"),
+                    legend_entry(CYAN,   f"Avg ${hp.mean():.3f}"),
+                    legend_entry(GRAY,   "BE $0.00", linestyle="-"),
+                ],
+                fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b",
+                labelcolor=TEXT, framealpha=0.85, loc="upper left")
+            sty(ax, "P&L  ·  Hedged vs Unhedged", "P&L ($)", "Freq")
+            fig_hh.tight_layout(pad=1.2)
+            st.pyplot(fig_hh, use_container_width=True)
+            plt.close(fig_hh)
 
         with col_hs:
-            fig_hs,ax=plt.subplots(figsize=(4.2,2.8),facecolor=BG); ax.set_facecolor(PANEL)
-            n_show=min(25,len(dps)); days_x=np.arange(backtest_days)
+            fig_hs, ax = plt.subplots(figsize=(4.2, 2.8), facecolor=BG)
+            ax.set_facecolor(PANEL)
+            n_show = min(25, len(dps))
+            days_x = np.arange(backtest_days)
             for dp in dps[:n_show]:
-                length=min(len(dp),backtest_days)
-                ax.plot(days_x[:length],dp[:length],color=CYAN,lw=0.4,alpha=0.3)
-            max_len=max(len(dp) for dp in dps[:n_show])
-            mean_d=np.array([np.mean([dps[i][t] for i in range(n_show) if t<len(dps[i])]) for t in range(max_len)])
-            ax.plot(days_x[:len(mean_d)],mean_d,color=YELLOW,lw=1.2,label="Avg Delta")
-            ax.axhline(0.5,color=GRAY,lw=0.5,linestyle=":",alpha=0.6,label="Δ = 0.5 (ATM)")
-            ax.set_ylim(-0.05,1.05)
-            ax.legend(fontsize=6.5,facecolor=PANEL,edgecolor="#2a4a6b",labelcolor=TEXT,framealpha=0.85)
-            sty(ax,"Delta Evolution Over Time","Day","Delta")
-            fig_hs.tight_layout(pad=1.2); st.pyplot(fig_hs,use_container_width=True); plt.close(fig_hs)
+                length = min(len(dp), backtest_days)
+                ax.plot(days_x[:length], dp[:length], color=CYAN, lw=0.4, alpha=0.3)
+            max_len = max(len(dp) for dp in dps[:n_show])
+            mean_d = np.array([
+                np.mean([dps[i][t] for i in range(n_show) if t < len(dps[i])])
+                for t in range(max_len)
+            ])
+            ax.plot(days_x[:len(mean_d)], mean_d, color=YELLOW, lw=1.2, label="Avg Delta")
+            ax.axhline(0.5, color=GRAY, lw=0.5, linestyle=":", alpha=0.6, label="Δ = 0.5 (ATM)")
+            ax.set_ylim(-0.05, 1.05)
+            ax.legend(fontsize=6.5, facecolor=PANEL, edgecolor="#2a4a6b", labelcolor=TEXT, framealpha=0.85)
+            sty(ax, "Delta Evolution Over Time", "Day", "Delta")
+            fig_hs.tight_layout(pad=1.2)
+            st.pyplot(fig_hs, use_container_width=True)
+            plt.close(fig_hs)
