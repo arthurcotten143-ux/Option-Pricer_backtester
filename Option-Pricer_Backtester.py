@@ -15,7 +15,21 @@ st.markdown("""
 .block-container{padding-top:3rem;padding-bottom:1rem;max-width:800px;}
 div[data-testid="stVerticalBlock"]{gap:0.4rem;}
 p{margin:0;font-size:14px;line-height:1.6;}
-h1{font-size:1.8rem;margin-bottom:1rem;}
+h1{font-size:2.2rem;margin-bottom:1.5rem;font-weight:600;}
+
+/* Square inputs */
+input, select, [data-baseweb="select"] > div {
+    border-radius: 2px !important;
+}
+button {
+    border-radius: 2px !important;
+}
+[data-testid="stNumberInput"] > div > div > input {
+    border-radius: 2px !important;
+}
+[data-testid="stSelectbox"] > div > div {
+    border-radius: 2px !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
